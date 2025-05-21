@@ -4,6 +4,7 @@ import math
 import matplotlib.pyplot as plt
 import os
 from cmdstanpy import CmdStanModel
+import cmdstanpy
 import numpy as np
 import arviz as az
 
@@ -207,6 +208,8 @@ class ParameterEstimation():
         """
         Create data description plots.
         """
+        os.makedirs(self.output_path_figures, exist_ok=True)
+
         df = self.data.copy()
 
         # if value == 0 add 1e-5
@@ -308,6 +311,9 @@ class ParameterEstimation():
         # Compile the Stan model using cmdstanpy.
         if os.path.exists(os.path.join(output_path_data, "stan_fit")):
                 print(f"Model already fitted.")
+
+                # read from csv
+                self.fit = cmdstanpy.from_csv(path=os.path.join(output_path_data, "stan_fit"), method = "sample")
         else:
             model = CmdStanModel(stan_file=stan_file)
 
@@ -362,58 +368,74 @@ class ParameterEstimation():
         # Create a directory for the summary plots if it doesn't exist
         os.makedirs(self.output_path_figures, exist_ok=True)
 
-        print("Generating language summary plots...")
+        if not os.path.exists(os.path.join(self.output_path_figures, "overall_ppc.png")):
 
-        fig, axes = plt.subplots(3, 4, figsize=(16, 12))
-        axes = axes.flatten()
+            az.plot_ppc(cmdstanpy_data, 
+                data_pairs={"y":"y_pred"})
 
-        for i in range(1, self.stan_data["n_language"] + 1):
-            az.plot_ppc(
-                cmdstanpy_data, 
-                data_pairs={"y": "y_pred"}, 
-                coords={"obs_id": np.where(self.stan_data["language"] == i)[0]},
-                ax=axes[i-1]
-            )
-            axes[i-1].set_title(f"Posterior Predictive Check for Language {i}")
+            plt.savefig(os.path.join(self.output_path_figures, "overall_ppc.png"))
+            plt.close()
 
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.output_path_figures, "language_ppc.png"))
-        plt.close()
+        if not os.path.exists(os.path.join(self.output_path_figures, "language_ppc.png")):
 
-        print("Generating task summary plots...")
+            print("Generating language summary plots...")
 
-        fig, axes = plt.subplots(3, 4, figsize=(16, 12))
-        axes = axes.flatten()
+            fig, axes = plt.subplots(3, 4, figsize=(16, 12))
+            axes = axes.flatten()
 
-        for i in range(1, self.stan_data["n_task"] + 1):
-            az.plot_ppc(
-                cmdstanpy_data, 
-                data_pairs={"y": "y_pred"}, 
-                coords={"obs_id": np.where(self.stan_data["task"] == i)[0]},
-                ax=axes[i-1]
-            )
-            axes[i-1].set_title(f"Posterior Predictive Check for Task {i}")
+            for i in range(1, self.stan_data["n_language"] + 1):
+                az.plot_ppc(
+                    cmdstanpy_data, 
+                    data_pairs={"y": "y_pred"}, 
+                    coords={"obs_id": np.where(np.array(self.stan_data["language"]) == i)[0]},
+                    ax=axes[i-1]
+                )
+                axes[i-1].set_title(f"Posterior Predictive Check for Language {i}")
 
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.output_path_figures, "task_ppc.png"))
-        plt.close()
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.output_path_figures, "language_ppc.png"))
+            plt.close()
 
-        print("Generating model summary plots...")
+        if not os.path.exists(os.path.join(self.output_path_figures, "task_ppc.png")):
 
-        fig, axes = plt.subplots(3, 4, figsize=(16, 12))
-        axes = axes.flatten()
+            print("Generating task summary plots...")
 
-        for i in [1,10, 20, 30, 40, 50]:
-            az.plot_ppc(
-                cmdstanpy_data, 
-                data_pairs={"y": "y_pred"}, 
-                coords={"obs_id": np.where(self.stan_data["group"] == i)[0]},
-                ax=axes[i-1]
-            )
-            axes[i-1].set_title(f"Posterior Predictive Check for Model {i}")
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.output_path_figures, "model_ppc.png"))
-        plt.close()
+            fig, axes = plt.subplots(3, 4, figsize=(16, 12))
+            axes = axes.flatten()
+
+            for i in range(1, self.stan_data["n_task"] + 1):
+                az.plot_ppc(
+                    cmdstanpy_data, 
+                    data_pairs={"y": "y_pred"}, 
+                    coords={"obs_id": np.where(np.array(self.stan_data["task"]) == i)[0]},
+                    ax=axes[i-1]
+                )
+                axes[i-1].set_title(f"Posterior Predictive Check for Task {i}")
+
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.output_path_figures, "task_ppc.png"))
+            plt.close()
+
+        if not os.path.exists(os.path.join(self.output_path_figures, "model_ppc.png")):
+
+            print("Generating model summary plots...")
+
+            models_to_show = [1,10, 20, 30, 40, 50]
+
+            fig, axes = plt.subplots(len(models_to_show), 2, figsize=(16, 12))
+            axes = axes.flatten()
+
+            for i, val in enumerate(models_to_show):
+                az.plot_ppc(
+                    cmdstanpy_data, 
+                    data_pairs={"y": "y_pred"}, 
+                    coords={"obs_id": np.where(np.array(self.stan_data["group"]) == val)[0]},
+                    ax=axes[i]
+                )
+                axes[i].set_title(f"Posterior Predictive Check for Model {val}")
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.output_path_figures, "model_ppc.png"))
+            plt.close()
 
         pass

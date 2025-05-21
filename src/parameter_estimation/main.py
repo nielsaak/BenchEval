@@ -2,7 +2,7 @@ import os
 from utils.parameter_estimation import ParameterEstimation
 import argparse
 
-# python src/parameter_estimation/main.py --output_path_data output/results/model_50 --model_file src/models/final/simple_model_hierarchical_18052025_v3.stan
+# python src/parameter_estimation/main.py --output_path_data output/results/model_centered --model_file src/models/final/simple_model_hierarchical_21052025_centered.stan
 
 if __name__ == "__main__":
     # Create path
@@ -13,18 +13,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parameter Estimation Paths")
     parser.add_argument("--output_path_data", type=str, required=True,
                         help="Output path for data results")
+    parser.add_argument("--model_file", type=str, required=True,
+                        help="Path to the Stan model file")
     args = parser.parse_args()
-    output_path_data = os.path.join(current_dir, args.output_path)
+
+    output_path_data = os.path.join(current_dir, args.output_path_data)
 
     # Load data
     data_path = "data/results.processed (1).jsonl"
     rank_path = "data/european_all_simplified.csv"
 
     # Model file path
-    parser.add_argument("--model_file", type=str, required=True,
-                        help="Path to the Stan model file")
-    args = parser.parse_args()
-    output_path_data = os.path.join(current_dir, args.output_path_data)
     model_file = args.model_file
 
     # Create an instance of ParameterEstimation
@@ -50,7 +49,7 @@ if __name__ == "__main__":
     parameter_estimation.estimate_parameters(stan_file=model_file,
                                              output_path_data=output_path_data,
                                              output_path_figures=output_path_figures,
-                                             model_fit_params={"chains": 3,
+                                             model_fit_params={"chains": 4,
                                                      "iter_sampling": 2000,
                                                      "iter_warmup": 1000,
                                                      "adapt_delta": 0.95,})
