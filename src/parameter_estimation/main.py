@@ -2,6 +2,8 @@ import os
 from utils.parameter_estimation import ParameterEstimation
 import argparse
 
+# python src/parameter_estimation/main.py --output_path_data output/results/model_50 --model_file src/models/final/simple_model_hierarchical_18052025_v3.stan
+
 if __name__ == "__main__":
     # Create path
     current_dir = os.path.dirname(os.path.abspath(__file__))
