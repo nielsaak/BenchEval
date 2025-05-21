@@ -1,0 +1,213 @@
+import json
+import pandas as pd
+import numpy as np
+import os
+import matplotlib.pyplot as plt
+import math
+
+class DataDescription():
+    def __init__(self, output_path_figures, output_path_data):
+        self.output_path_figures = output_path_figures
+        self.output_path_data = output_path_data
+
+    def load_data(self, data_path):
+        """
+        Load data from the specified path.
+        """
+
+        # Open the file and read JSON lines
+        with open(data_path, 'r') as file:
+            records = [json.loads(line) for line in file if line.strip()]
+
+        rows = []
+        for entry in records:
+            try:
+                # Get the list of test results
+                raw_tests = entry.get('results', {}).get('raw', {}).get('test', [])
+                # Capture the base information for the record excluding 'results'
+                base_info = {k: v for k, v in entry.items() if k != 'results'}
+                # For each test result and each metric in that result, create a row.
+                for idx, test_result in enumerate(raw_tests):
+                    for metric_name, metric_value in test_result.items():
+                        row = base_info.copy()
+                        row["test_index"] = idx + 1
+                        row["metric"] = metric_name
+                        row["value"] = metric_value
+                        rows.append(row)
+            except:
+                try:
+                    # Get the list of test results
+                    raw_tests = entry.get('results', {}).get('raw', {})
+                    # Capture the base information for the record excluding 'results'
+                    base_info = {k: v for k, v in entry.items() if k != 'results'}
+                    # For each test result and each metric in that result, create a row.
+                    for idx, test_result in enumerate(raw_tests):
+                        for metric_name, metric_value in test_result.items():
+                            row = base_info.copy()
+                            row["test_index"] = idx + 1
+                            row["metric"] = metric_name
+                            row["value"] = metric_value
+                            rows.append(row)
+                except Exception as e:
+                    print(f"Error processing entry: {entry}")
+                    print(e)
+
+        self.data = pd.DataFrame(rows)
+
+    def preprocess_data(self):
+        """
+        Preprocess the loaded data.
+        """
+        df_full = self.data
+
+        # remove task == speed
+        remove_list = ['test_speed', 'test_speed_short', 'test_runtime', 'test_samples_per_second', 'test_steps_per_second', 'epoch', 'test_micro_f1_no_misc', 'test_micro_f1', 'test_em', 'test_f1', 'test_accuracy', 'test_loss', 'test_mcc', 'test_macro_f1']
+        df_full = df_full[~df_full['metric'].isin(remove_list)]
+
+        # remove few_shot == False
+        df_full = df_full[df_full['few_shot'] == True]
+
+        # remove value scores equal to or below 0
+        # df_full = df_full[df_full['value'] > 0]
+
+        # make a column called language, that takes the first of the list that is in dataset_languages
+        def get_language(row):
+            if row['dataset_languages']:
+                # if nb, nn or no, just return 'no'
+                if row['dataset_languages'][0] in ['nb', 'nn', 'no']:
+                    return 'no'
+                # if there are multiple languages, return the first one
+                elif len(row['dataset_languages']) > 1:
+                    print(f"Multiple languages found: {row['dataset_languages']}")
+                else:
+                    return row['dataset_languages'][0]
+
+                return row['dataset_languages'][0]
+            return None
+        df_full['language'] = df_full.apply(get_language, axis=1)
+
+        # mcc goes from -1 to 1. This should be transformed to 0 to 1
+        def transform_mcc(value):
+            if value == -1:
+                return 0
+            elif value == 1:
+                return 1
+            elif value < -1 or value > 1:
+                raise ValueError(f"Invalid MCC value: {value}")
+            else:
+                return (value + 1) / 2
+
+        # em goes from 0 to 100. This should be transformed to 0 to 1
+        def transform_em(value):
+            if value < 0 or value > 100:
+                raise ValueError(f"Invalid EM value: {value}")
+            else:
+                return value / 100
+            
+        # f1 goes from 0 to 100. This should be transformed to 0 to 1
+        def transform_f1(value):
+            if value < 0 or value > 100:
+                raise ValueError(f"Invalid F1 value: {value}")
+            else:
+                return value / 100
+
+        # Apply the transformation to the 'value' column for 'mcc' metrics
+        df_full.loc[df_full['metric'].str.lower() == 'mcc', 'value'] = df_full.loc[df_full['metric'].str.lower() == 'mcc', 'value'].apply(transform_mcc)
+
+        # Apply the transformation to the 'value' column for 'em' metrics
+        df_full.loc[df_full['metric'].str.lower() == 'em', 'value'] = df_full.loc[df_full['metric'].str.lower() == 'em', 'value'].apply(transform_em)
+
+        # Apply the transformation to the 'value' column for 'f1' metrics
+        df_full.loc[df_full['metric'].str.lower() == 'f1', 'value'] = df_full.loc[df_full['metric'].str.lower() == 'f1', 'value'].apply(transform_f1)
+
+        # choose only the primary metric for each task
+        primary_metrics = {
+            'common-sense-reasoning': 'mcc',
+            'knowledge': 'mcc',
+            'linguistic-acceptability': 'mcc',
+            'named-entity-recognition': 'micro_f1_no_misc',
+            'reading-comprehension': 'em',
+            'sentiment-classification': 'mcc',
+            'summarization': 'bertscore'
+        }
+
+        # Filter the DataFrame to keep only the primary metric for each task
+        def filter_primary_metric(row):
+            task = row['task']
+            metric = row['metric'].lower()
+            if task in primary_metrics:
+                return metric == primary_metrics[task]
+            return False
+
+        # Apply the filter to the DataFrame
+        df_full = df_full[df_full.apply(filter_primary_metric, axis=1)]
+
+        # Change languages from abbreviation to full language name
+        language_map = {
+            'en': 'English',
+            'de': 'German',
+            'es': 'Spanish',
+            'fr': 'French',
+            'it': 'Italian',
+            'da': 'Danish',
+            'no': 'Norwegian',
+            'sv': 'Swedish',
+            'fi': 'Finnish',
+            'nl': 'Dutch',
+            'fo': 'Faroese',
+            'is': 'Icelandic',
+        }
+
+        df_full['language'] = df_full['language'].replace(language_map)
+
+        print(f"Unique tasks: {df_full['task'].unique()}")
+        print(f"Unique metrics: {df_full['metric'].unique()}")
+        print(f"Unique languages: {df_full['language'].unique()}")
+        print(f"Number of unique models: {len(df_full['model'].unique())}")
+        print(f"Number of observations: {len(df_full)}")
+        
+        self.data = df_full
+
+    def plot_histograms(self, group_by: str):
+        df = self.data.copy()
+
+        # Group the data by the specified column
+        groups = list(df.groupby([group_by]))
+        n_plots = len(groups)
+        ncols = 3  # You can adjust the number of columns as needed
+        nrows = math.ceil(n_plots / ncols)
+
+        fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 5, nrows * 4))
+        axes = axes.flatten()
+
+        for ax, (val, group) in zip(axes, groups):
+            group['value'].plot.hist(bins=30, edgecolor='black', ax=ax)
+            ax.set_title(f"{group_by}: {val}")
+            ax.set_xlabel("Value")
+            ax.set_ylabel("Frequency")
+
+        # Remove unused subplots if there are any
+        for ax in axes[len(groups):]:
+            ax.remove()
+
+        # Add an overall title to the full figure
+        fig.suptitle(f"Overall Histograms by {group_by}", fontsize=16)
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        
+        # Save the figure
+        output_path = os.path.join(self.output_path_figures, f"histograms_{group_by}.png")
+        plt.savefig(output_path)
+        plt.close()
+    
+    def plot_histograms_model_counts(self):
+
+        model_counts = self.data['model'].value_counts()
+        plt.hist(model_counts, bins=20, edgecolor='black')
+        plt.title("Model Observations Histogram")
+        plt.xlabel("Number of Observations")
+        plt.ylabel("Frequency")
+
+        # Save the figure
+        output_path = os.path.join(self.output_path_figures, "model_observations_histogram.png")
+        plt.savefig(output_path)
+        plt.close()

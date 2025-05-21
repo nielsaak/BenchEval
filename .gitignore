@@ -172,3 +172,16 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+**/data/
+**/output/
+src/models/hierarchical/
+src/models/simple/
+src/model_experimentation/
+
+# ignore all .DS_Store files
+**/.DS_Store
+.DS_Store
+
+# all with suffix .ipynb
+*.ipynb

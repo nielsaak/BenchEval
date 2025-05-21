@@ -12,7 +12,7 @@ parameters {
   
   // Precision parameter for the beta distribution
   // Controls the variance; higher phi means lower variance around the mean.
-  real<lower=0> phi;
+  real<lower=1e-3, upper=1e4> phi;
 }
 
 transformed parameters {
@@ -30,5 +30,5 @@ model {
 
   // Likelihood: beta regression with mean mu and precision phi.
   // The beta distribution is parameterized here by (mu*phi, (1-mu)*phi).
-  y ~ beta(mu * phi, (1 - mu) * phi);
+  y ~ beta(mu * phi + 1.0e-9, (1 - mu) * phi + 1.0e-9);
 }

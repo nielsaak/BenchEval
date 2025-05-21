@@ -1,10 +1,30 @@
 import json
 import pandas as pd
+import math
+import matplotlib.pyplot as plt
+import os
+from cmdstanpy import CmdStanModel
+import numpy as np
+import arviz as az
 
 class ParameterEstimation():
     """
     A class for parameter estimation using Stan.
     """
+
+    DEFAULT_PARAMETERS = [
+        "mu_alpha",
+        "sigma_alpha",
+        "alpha_std",
+        "mu_beta_language",
+        "mu_beta_task",
+        "sigma_beta_language",
+        "sigma_beta_task",
+        "beta_language_std",
+        "beta_task_std",
+        "phi_alpha",
+        "beta_task_phi"
+        ]
 
     def __init__(self, model_file, output_path_figures, output_path_data):
         """
@@ -18,6 +38,12 @@ class ParameterEstimation():
         self.model_file = model_file
         self.output_path_figures = output_path_figures
         self.output_path_data = output_path_data
+        self.data = None
+        self.stan_data = None
+        self.model_mapping = None
+        self.task_mapping = None
+        self.language_mapping = None
+        self.fit = None
 
     def load_data(self, data_path):
         """
@@ -39,7 +65,7 @@ class ParameterEstimation():
                 for idx, test_result in enumerate(raw_tests):
                     for metric_name, metric_value in test_result.items():
                         row = base_info.copy()
-                        row["test_index"] = idx + 1 # For showing what tries go together
+                        row["test_index"] = idx + 1
                         row["metric"] = metric_name
                         row["value"] = metric_value
                         rows.append(row)
@@ -61,39 +87,333 @@ class ParameterEstimation():
                     print(f"Error processing entry: {entry}")
                     print(e)
 
-        return pd.DataFrame(rows)
+        self.data = pd.DataFrame(rows)
 
-    def preprocess_data(self):
+    def preprocess_data(self, top_n = None, top_n_path = None, test_index_n = None):
         """
         Preprocess the loaded data.
         """
-        # Implement data preprocessing logic here
-        pass
+        df_full = self.data
+
+        # remove task == speed
+        remove_list = ['test_speed', 'test_speed_short', 'test_runtime', 'test_samples_per_second', 'test_steps_per_second', 'epoch', 'test_micro_f1_no_misc', 'test_micro_f1', 'test_em', 'test_f1', 'test_accuracy', 'test_loss', 'test_mcc', 'test_macro_f1']
+        df_full = df_full[~df_full['metric'].isin(remove_list)]
+
+        # remove few_shot == False
+        df_full = df_full[df_full['few_shot'] == True]
+
+        # use only the first n test_index
+        if test_index_n is not None:
+            df_full = df_full[df_full['test_index'] <= test_index_n]
+
+
+        # remove value scores equal to or below 0
+        # df_full = df_full[df_full['value'] > 0]
+
+        # make a column called language, that takes the first of the list that is in dataset_languages
+        def get_language(row):
+            if row['dataset_languages']:
+                # if nb, nn or no, just return 'no'
+                if row['dataset_languages'][0] in ['nb', 'nn', 'no']:
+                    return 'no'
+                # if there are multiple languages, return the first one
+                elif len(row['dataset_languages']) > 1:
+                    print(f"Multiple languages found: {row['dataset_languages']}")
+                else:
+                    return row['dataset_languages'][0]
+
+                return row['dataset_languages'][0]
+            return None
+        df_full['language'] = df_full.apply(get_language, axis=1)
+
+        # mcc goes from -1 to 1. This should be transformed to 0 to 1
+        def transform_mcc(value):
+            if value == -1:
+                return 0
+            elif value == 1:
+                return 1
+            elif value < -1 or value > 1:
+                raise ValueError(f"Invalid MCC value: {value}")
+            else:
+                return (value + 1) / 2
+
+        # em goes from 0 to 100. This should be transformed to 0 to 1
+        def transform_em(value):
+            if value < 0 or value > 100:
+                raise ValueError(f"Invalid EM value: {value}")
+            else:
+                return value / 100
+            
+        # f1 goes from 0 to 100. This should be transformed to 0 to 1
+        def transform_f1(value):
+            if value < 0 or value > 100:
+                raise ValueError(f"Invalid F1 value: {value}")
+            else:
+                return value / 100
+
+        # Apply the transformation to the 'value' column for 'mcc' metrics
+        df_full.loc[df_full['metric'].str.lower() == 'mcc', 'value'] = df_full.loc[df_full['metric'].str.lower() == 'mcc', 'value'].apply(transform_mcc)
+
+        # Apply the transformation to the 'value' column for 'em' metrics
+        df_full.loc[df_full['metric'].str.lower() == 'em', 'value'] = df_full.loc[df_full['metric'].str.lower() == 'em', 'value'].apply(transform_em)
+
+        # Apply the transformation to the 'value' column for 'f1' metrics
+        df_full.loc[df_full['metric'].str.lower() == 'f1', 'value'] = df_full.loc[df_full['metric'].str.lower() == 'f1', 'value'].apply(transform_f1)
+
+        # choose only the primary metric for each task
+        primary_metrics = {
+            'common-sense-reasoning': 'mcc',
+            'knowledge': 'mcc',
+            'linguistic-acceptability': 'mcc',
+            'named-entity-recognition': 'micro_f1_no_misc',
+            'reading-comprehension': 'em',
+            'sentiment-classification': 'mcc',
+            'summarization': 'bertscore'
+        }
+
+        # Filter the DataFrame to keep only the primary metric for each task
+        def filter_primary_metric(row):
+            task = row['task']
+            metric = row['metric'].lower()
+            if task in primary_metrics:
+                return metric == primary_metrics[task]
+            return False
+        
+        # remove where df_full["generative"] is false
+        df_full = df_full[df_full["generative"] == True]
+
+        # Apply the filter to the DataFrame
+        df_full = df_full[df_full.apply(filter_primary_metric, axis=1)]
+
+        if top_n is not None:
+            df_euro = pd.read_csv(top_n_path)
+            df_euro = df_euro[~df_euro['model'].str.contains('zero-shot', na=False)]
+            df_euro['model'] = df_euro['model'].str.replace(r' \(few-shot\)', '', regex=True)
+            df_euro['model'] = df_euro['model'].str.replace(r' \(few-shot, val\)', '', regex=True)
+            df_euro_100 = df_euro.nsmallest(top_n, 'rank')
+            df_full = df_full[df_full['model'].isin(df_euro_100['model'].tolist())]
+
+
+
+        print(f"Unique tasks: {df_full['task'].unique()}")
+        print(f"Unique metrics: {df_full['metric'].unique()}")
+        print(f"Unique languages: {df_full['language'].unique()}")
+        print(f"Number of unique models: {len(df_full['model'].unique())}")
+        print(f"Number of observations: {len(df_full)}")
+        
+        self.data = df_full
     
-    def estimate_parameters(self, output_path_data, output_path_figures):
+    def data_description_plots(self):
+        """
+        Create data description plots.
+        """
+        df = self.data.copy()
+
+        # if value == 0 add 1e-5
+        df['value'] = df['value'].replace(0, 1e-5)
+        # if value == 1 subtract 1e-5
+        df['value'] = df['value'].replace(1, 1 - 1e-5)
+
+        # Group the data by 'task' and 'metric'
+        groups = list(df.groupby(['task', 'metric']))
+        n_plots = len(groups)
+        ncols = 3  # You can adjust the number of columns as needed
+        nrows = math.ceil(n_plots / ncols)
+
+        fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 5, nrows * 4))
+        axes = axes.flatten()
+
+        for ax, ((task, metric), group) in zip(axes, groups):
+            group['value'].plot.hist(bins=30, edgecolor='black', ax=ax)
+            ax.set_title(f"Task: {task}, Metric: {metric}")
+            ax.set_xlabel("Value")
+            ax.set_ylabel("Frequency")
+
+        # Remove unused subplots if there are any
+        for ax in axes[len(groups):]:
+            ax.remove()
+
+        plt.tight_layout()
+        # Save the plot to file
+        output_file = os.path.join(self.output_path_figures, "data_histograms.png")
+        plt.savefig(output_file)
+        plt.close()
+        pass
+
+    def prepare_data_for_stan(self, limit_models=None):
+        """
+        Prepare data for Stan model.
+        """
+        df = self.data.copy()
+
+        # if value == 0 add 1e-5
+        df['value'] = df['value'].replace(0, 1e-5)
+        # if value == 1 subtract 1e-5
+        df['value'] = df['value'].replace(1, 1 - 1e-5)
+
+        # change name of models to numbers starting from 1
+        df['model'] = df['model'].map({name: i + 1 for i, name in enumerate(df['model'].unique())})
+
+        # limit the number of models
+        if limit_models is not None:
+            model_list = list(range(1, limit_models))
+            df = df[df['model'].isin(model_list)]
+
+
+        # Convert the DataFrame to a dictionary format suitable for Stan
+        stan_data = {
+            'N': len(df),
+            'M': len(df['model'].unique()),
+            'n_language': len(df['language'].unique()),
+            'n_task': len(df['task'].unique()),
+            'group': df['model'].map({name: i + 1 for i, name in enumerate(df['model'].unique())}).tolist(),
+            'language': df['language'].map({name: i + 1 for i, name in enumerate(df['language'].unique())}).tolist(),
+            'task': df['task'].map({name: i + 1 for i, name in enumerate(df['task'].unique())}).tolist(),
+            'y': [val / 100 if val > 1 else val for val in df['value'].tolist()]
+        }
+
+        model_mapping = {name: i + 1 for i, name in enumerate(df['model'].unique())}
+        task_mapping = {name: i + 1 for i, name in enumerate(df['task'].unique())}
+        language_mapping = {name: i + 1 for i, name in enumerate(df['language'].unique())}
+
+        # get length of each element in stan_data
+        for key, value in stan_data.items():
+            if isinstance(value, list):
+                print(f"{key}: {len(value)}")
+            else:
+                print(f"{key}: {value}")
+
+        self.stan_data = stan_data
+        self.model_mapping = model_mapping
+        self.task_mapping = task_mapping
+        self.language_mapping = language_mapping
+    
+    def estimate_parameters(self,
+                            stan_file: str,
+                            output_path_data, 
+                            output_path_figures,
+                            # parameter_names: list = DEFAULT_PARAMETERS,
+                            model_fit_params: dict = {"chains": 1,
+                                                     "iter_sampling": 2000,
+                                                     "iter_warmup": 1000,
+                                                     "seed": 42,
+                                                    #  "output_dir": "output/stan_fits",
+                                                     "adapt_delta": 0.95,}):
         """
         Estimate parameters using the Stan model.
 
         :param output_path_data: Path to save output data.
         :param output_path_figures: Path to save output figures.
         """
-        # Implement parameter estimation logic here
-        pass
-        # Example of using PyStan or CmdStanPy for parameter estimation
-        # import pystan
-        # import cmdstanpy
-        # model = pystan.StanModel(file=self.model_file)
-        # data = self.load_data()
-        # fit = model.sampling(data=data, iter=1000, chains=4)
-        # fit_summary = fit.summary()
-        # fit_summary.to_csv(os.path.join(output_path_data, "parameter_estimates.csv"))
-        # fit.plot()
-        # plt.savefig(os.path.join(output_path_figures, "parameter_estimates.png"))
-        # plt.close()
-        # Save the results
-        # fit.save(os.path.join(output_path_data, "stan_fit.pkl"))
-        # Save figures
-        # plt.savefig(os.path.join(output_path_figures, "traceplot.png"))
-        # plt.close()
+        # Compile the Stan model using cmdstanpy.
+        if os.path.exists(os.path.join(output_path_data, "stan_fit")):
+                print(f"Model already fitted.")
+        else:
+            model = CmdStanModel(stan_file=stan_file)
 
-    
+            self.fit = model.sample(
+                    data=self.stan_data,
+                    **model_fit_params,
+                )
+            
+            print("Fitting completed.")
+            print("Saving results...")
+            
+            self.fit.save_csvfiles(os.path.join(output_path_data, "stan_fit"))
+
+            print("Results saved.")
+            print("Generating summary...")
+
+            fit_summary = self.fit.summary()
+
+            fit_summary.to_csv(os.path.join(output_path_data, "stan_fit/summary.csv"), index=True)
+
+            print("Summary saved.")
+            print("Generating diagnostics...")
+
+            fit_diagnostics = self.fit.diagnose()
+
+            with open(os.path.join(output_path_data, "stan_fit/diagnostics.txt"), 'w') as f:
+                f.write(fit_diagnostics)
+
+            print("Diagnostics saved.")
+
+        pass
+
+    def summary_plots(self):
+        """
+        Generate summary plots.
+        """
+        print("Generating summary plots...")
+        # Load the fit data
+        # fit = self.fit
+
+        coords = {"obs_id": np.arange(self.stan_data['N']),}
+        dims = {"y": ["obs_id"], "y_pred": ["obs_id"]}
+
+        cmdstanpy_data = az.from_cmdstanpy(
+            posterior=self.fit,
+            observed_data={'y': self.stan_data['y']},
+            coords=coords,
+            dims=dims,
+            posterior_predictive="y_pred",
+            )
+
+        # Create a directory for the summary plots if it doesn't exist
+        os.makedirs(self.output_path_figures, exist_ok=True)
+
+        print("Generating language summary plots...")
+
+        fig, axes = plt.subplots(3, 4, figsize=(16, 12))
+        axes = axes.flatten()
+
+        for i in range(1, self.stan_data["n_language"] + 1):
+            az.plot_ppc(
+                cmdstanpy_data, 
+                data_pairs={"y": "y_pred"}, 
+                coords={"obs_id": np.where(self.stan_data["language"] == i)[0]},
+                ax=axes[i-1]
+            )
+            axes[i-1].set_title(f"Posterior Predictive Check for Language {i}")
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_path_figures, "language_ppc.png"))
+        plt.close()
+
+        print("Generating task summary plots...")
+
+        fig, axes = plt.subplots(3, 4, figsize=(16, 12))
+        axes = axes.flatten()
+
+        for i in range(1, self.stan_data["n_task"] + 1):
+            az.plot_ppc(
+                cmdstanpy_data, 
+                data_pairs={"y": "y_pred"}, 
+                coords={"obs_id": np.where(self.stan_data["task"] == i)[0]},
+                ax=axes[i-1]
+            )
+            axes[i-1].set_title(f"Posterior Predictive Check for Task {i}")
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_path_figures, "task_ppc.png"))
+        plt.close()
+
+        print("Generating model summary plots...")
+
+        fig, axes = plt.subplots(3, 4, figsize=(16, 12))
+        axes = axes.flatten()
+
+        for i in [1,10, 20, 30, 40, 50]:
+            az.plot_ppc(
+                cmdstanpy_data, 
+                data_pairs={"y": "y_pred"}, 
+                coords={"obs_id": np.where(self.stan_data["group"] == i)[0]},
+                ax=axes[i-1]
+            )
+            axes[i-1].set_title(f"Posterior Predictive Check for Model {i}")
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.output_path_figures, "model_ppc.png"))
+        plt.close()
+
+        pass

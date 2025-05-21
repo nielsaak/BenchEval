@@ -1,160 +1,302 @@
 import pandas as pd
 from cmdstanpy import CmdStanModel
 import os
+import arviz as az
+import pickle
+import matplotlib.pyplot as plt
+import numpy as np
+import cmdstanpy
 
 class ParameterRecovery():
-    def __init__(self, data: pd.DataFrame, model_file: str, params: dict):
-        self.data = data
-        self.model_file = model_file
-        self.params = params
+    DEFAULT_PARAMETERS = [
+        "mu_alpha",
+        "sigma_alpha",
+        "alpha_std",
+        "mu_beta_language",
+        "mu_beta_task",
+        "sigma_beta_language",
+        "sigma_beta_task",
+        "beta_language_std",
+        "beta_task_std",
+        "phi_alpha",
+        "beta_task_phi"
+        ]
 
-    def prepare_stan_data(self, df_group):
-        """
-        Convert a DataFrame (one group with a unique combination of parameters)
-        into the corresponding Stan data dictionary.
-        Modify this method based on your model's expected data input.
-        """
-        # For example, assume group data already has columns 'N', 'y' etc.
-        # Here is a dummy example:
-        stan_data = {
-            'N': df_group.shape[0],
-            'y': df_group['y'].tolist(),
-            # Include other required fields from your model...
-        }
-        return stan_data
+    def __init__(self):
+        return
 
-    def _generate_trace_plots(self, fit, output_path):
-        """
-        Generate and save trace plots for the fit object.
-        This is a placeholder function; implement your own plotting logic.
-        """
-        # Example: Save trace plots using matplotlib or seaborn
-        pass
+    def load_data(data_path: str):
 
-    def _generate_rank_plots(self, fit, output_path):
-        """
-        Generate and save rank plots for the fit object.
-        This is a placeholder function; implement your own plotting logic.
-        """
-        # Example: Save rank plots using matplotlib or seaborn
-        pass
+        with open(data_path, "rb") as file:
+            data = pickle.load(file)
 
-    def _generate_prior_predictive_checks(self, fit, output_path):
-        """
-        Generate and save prior predictive checks for the fit object.
-        This is a placeholder function; implement your own plotting logic.
-        """
-        # Example: Save prior predictive checks using matplotlib or seaborn
-        pass
+        return data
+    
+    def _generate_figures_recovery(self, all_posteriors, true_params, parameter_name, output_path):
 
-    def _generate_posterior_predictive_checks(self, fit, output_path):
-        """
-        Generate and save posterior predictive checks for the fit object.
-        This is a placeholder function; implement your own plotting logic.
-        """
-        # Example: Save posterior predictive checks using matplotlib or seaborn
-        pass
+        if type(true_params[0]) == float or type(true_params[0]) == int:
+            K = all_posteriors[0].shape[1]  # Number of parameters
+            n_runs = len(all_posteriors)  # Number of runs
+            hdi_prob = 0.95  # HDI probability
+            
+            # Prepare plot
+            fig, axes = plt.subplots(1, K, figsize=(4*K, 4), sharey=True)
 
-    def _generate_posterior_plots(self, fit, output_path):
-        """
-        Generate and save posterior plots for the fit object.
-        This is a placeholder function; implement your own plotting logic.
-        """
-        # Example: Save posterior plots using matplotlib or seaborn
-        pass
+            markers = ['o', 's', '^', 'D']
+            colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-    def _generate_prior_posterior_update_plots(self, fit, output_path):
-        """
-        Generate and save prior-posterior update plots for the fit object.
-        This is a placeholder function; implement your own plotting logic.
-        """
-        # Example: Save prior-posterior update plots using matplotlib or seaborn
-        pass
+            if K == 1:
+                axes = [axes]
+            
+            for k in range(K):
+                ax = axes[k]
+                for run_idx, (true, samples) in enumerate(zip(true_params, all_posteriors)):
+                    # Extract samples for this category
+                    param_samples = samples[:, k]
+                    # Compute mean and HDI
+                    mean_est = np.mean(param_samples)
+                    # hdi_interval = az.hdi(param_samples, hdi_prob=hdi_prob)
 
-    def _generate_figures_model(self, fit, output_path):
-        """
-        Generate and save figures based on the fit object.
-        This is a placeholder function; implement your own plotting logic.
-        """
-        # Example: Save trace plots, posterior distributions, etc.
-        # Use libraries like matplotlib or seaborn for visualization
+                    if K == 1:
+                        true = [true]
+                    
+                    # Plot mean point with horizontal jitter at true value
+                    # ax.errorbar(
+                    #     true[k] + (run_idx - (n_runs-1)/2) * 0.005,  # small offset
+                    #     mean_est,
+                    #     yerr=[[mean_est - hdi_interval[0]], [hdi_interval[1] - mean_est]],
+                    #     # fmt=markers[run_idx],
+                    #     label=f'Run {run_idx+1}' if k == 0 else None,
+                    #     capsize=4,
+                    #     markersize=6,
+                    #     # color=colors[run_idx]
+                    # )
+                    ax.plot(
+                        true[k],
+                        mean_est,
+                        marker='o',
+                        linestyle='none',
+                        label=f'Run {run_idx+1}' if k == 0 else None,
+                        markersize=6,
+                        # color=colors[run_idx]
+                    )
+                # Identity line
+                ax.plot([-3, 3], [-3, 3], '--', color='gray')
+                ax.set_title(f'{parameter_name} {k+1}')
+                ax.set_xlabel('True Value')
+                if k == 0:
+                    ax.set_ylabel('Posterior Mean ± HDI')
+                ax.set_xlim(-3, 3)
+                ax.set_ylim(-3, 3)
+                if k == 0:
+                    ax.legend(loc='upper left', fontsize='small')
 
-        self._generate_trace_plots(fit, output_path)
-        self._generate_rank_plots(fit, output_path)
-        self._generate_prior_predictive_checks(fit, output_path)
-        self._generate_posterior_predictive_checks(fit, output_path)
-        self._generate_posterior_plots(fit, output_path)
-        self._generate_prior_posterior_update_plots(fit, output_path)
-        pass
+            plt.suptitle(f'Parameter Recovery: Mean ± {int(hdi_prob*100)}% HDI')
+            plt.tight_layout(rect=[0, 0, 1, 0.95])
+            
+            # Save the plot to file
+            output_file = os.path.join(output_path, f"{parameter_name}_recovery.png")
+            plt.savefig(output_file)
+            plt.close()
+        elif len(true_params[0].shape) == 1:
+            K = all_posteriors[0].shape[1]  # Number of parameters
+            n_runs = len(all_posteriors)  # Number of runs
+            hdi_prob = 0.95  # HDI probability
+            
+            # Prepare plot
+            fig, axes = plt.subplots(1, K, figsize=(4*K, 4), sharey=True)
 
-    def _generate_figures_recovery(self, fits, output_path):
-        """
-        Generate and save figures for parameter recovery.
-        This is a placeholder function; implement your own plotting logic.
-        """
-        # Example: Save parameter recovery plots
-        # Use libraries like matplotlib or seaborn for visualization
+            markers = ['o', 's', '^', 'D']
+            colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-        # do simple scatter plots estimated vs. true parameters
+            if K == 1:
+                axes = [axes]
+            
+            for k in range(K):
+                ax = axes[k]
+                for run_idx, (true, samples) in enumerate(zip(true_params, all_posteriors)):
+                    # Extract samples for this category
+                    param_samples = samples[:, k]
+                    # Compute mean and HDI
+                    mean_est = np.mean(param_samples)
+                    # hdi_interval = az.hdi(param_samples, hdi_prob=hdi_prob)
+
+                    if K == 1:
+                        true = [true]
+                    
+                    # Plot mean point with horizontal jitter at true value
+                    # ax.errorbar(
+                    #     true[k] + (run_idx - (n_runs-1)/2) * 0.005,  # small offset
+                    #     mean_est,
+                    #     yerr=[[mean_est - hdi_interval[0]], [hdi_interval[1] - mean_est]],
+                    #     # fmt=markers[run_idx],
+                    #     label=f'Run {run_idx+1}' if k == 0 else None,
+                    #     capsize=4,
+                    #     markersize=6,
+                    #     # color=colors[run_idx]
+                    # )
+                    ax.plot(
+                        true[k],
+                        mean_est,
+                        marker='o',
+                        linestyle='none',
+                        label=f'Run {run_idx+1}' if k == 0 else None,
+                        markersize=6,
+                        # color=colors[run_idx]
+                    )
+                # Identity line
+                ax.plot([-3, 3], [-3, 3], '--', color='gray')
+                ax.set_title(f'{parameter_name} {k+1}')
+                ax.set_xlabel('True Value')
+                if k == 0:
+                    ax.set_ylabel('Posterior Mean ± HDI')
+                ax.set_xlim(-3, 3)
+                ax.set_ylim(-3, 3)
+                if k == 0:
+                    ax.legend(loc='upper left', fontsize='small')
+
+            plt.suptitle(f'Parameter Recovery: Mean ± {int(hdi_prob*100)}% HDI')
+            plt.tight_layout(rect=[0, 0, 1, 0.95])
+            
+            # Save the plot to file
+            output_file = os.path.join(output_path, f"{parameter_name}_recovery.png")
+            plt.savefig(output_file)
+            plt.close()
+        else:
+            hdi_prob = 0.95
+            n_participants = true_params[0].shape[0]
+            var_dim = true_params[0].shape[1]
+            K = 1  # Assuming one parameter per column
+            n_runs = len(all_posteriors)
+
+            # Check that columns match expectation
+            expected_cols = var_dim * n_participants
+            assert all_posteriors[0].shape[1] == expected_cols, f"Expected {expected_cols} columns but got {all_posteriors[0].shape[1]}"
+
+            markers = ['o', 's', '^', 'D', 'v', '*']
+            colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+            fig, axes = plt.subplots(3, 4, figsize=(20, 15), sharex=True, sharey=True)
+            axes = axes.flatten()
+
+            for lang_idx in range(var_dim):
+                ax = axes[lang_idx]
+
+                for part_idx in range(n_participants):
+                    col_idx = lang_idx * n_participants + part_idx  # index in the 60 columns
+
+                    for run_idx, samples_run in enumerate(all_posteriors):
+                        param_samples = samples_run[:, col_idx]
+                        mean_est = np.mean(param_samples)
+                        hdi_interval = az.hdi(param_samples, hdi_prob=hdi_prob)
+
+                        # Horizontal jitter for visualization
+                        true_val = true_params[run_idx][part_idx][lang_idx]
+                        # x_jittered = true_val + (run_idx - (n_runs - 1) / 2) * 0.01
+                        # ax.errorbar(
+                        #     x_jittered,
+                        #     mean_est,
+                        #     yerr=[[mean_est - hdi_interval[0]], [hdi_interval[1] - mean_est]],
+                        #     # fmt=markers[part_idx % len(markers)],
+                        #     label=f'P{part_idx+1}, Run {run_idx+1}' if run_idx == 0 else None,
+                        #     capsize=4,
+                        #     markersize=6,
+                        #     # color=colors[part_idx % len(colors)]
+                        # )
+                        ax.plot(
+                        true_val,
+                        mean_est,
+                        marker='o',
+                        linestyle='none',
+                        label=f'P{part_idx+1}, Run {run_idx+1}' if run_idx == 0 else None,
+                        markersize=6,
+                        # color=colors[run_idx]
+                    )
+
+                ax.plot([-3, 3], [-3, 3], '--', color='gray')
+                ax.set_title(f'{parameter_name} Recovery - Language {lang_idx+1}')
+                ax.set_xlabel('True Value')
+                ax.set_ylabel('Posterior Mean ± HDI')
+                ax.set_xlim(-3, 3)
+                ax.set_ylim(-3, 3)
+                # ax.legend(loc='upper left', fontsize='small')
+
+            fig.suptitle(f'Parameter Recovery for {parameter_name}: Posterior Mean ± {int(hdi_prob*100)}% HDI', fontsize=16)
+            fig.supxlabel('True Value', fontsize=14)
+            fig.supylabel('Estimated Value', fontsize=14)
+
+            # Create a single legend outside the plots
+            handles, labels = ax.get_legend_handles_labels()
+            fig.legend(handles[:n_participants], labels[:n_participants], loc='lower center', ncol=6, fontsize='medium')
 
 
-        # do interaction scatter plots estimated vs. true parameters but faceted for another true parameter
-        pass
+            plt.tight_layout(rect=[0, 0.05, 1, 0.95])  # leave space for suptitle and legend
+            output_file = os.path.join(output_path, f"{parameter_name}_recovery.png")
+            plt.savefig(output_file)
+            plt.close()
 
     def recover_parameters(self,
+                           data,
+                           stan_file: str,
                            output_path_data: str,
                            output_path_figures: str,
-                           model_fit_params: dict = {"chains": 4,
-                                                     "parallel_chains": 4,
+                           parameter_names: list = DEFAULT_PARAMETERS,
+                           model_fit_params: dict = {"chains": 1,
                                                      "iter_sampling": 1000,
                                                      "iter_warmup": 500,
-                                                     "seed": 42}):
-        """
-        Fit the Stan model for each combination of parameters present in the data.
-        Assumes the data has columns indicating parameter combinations (e.g., 'param1', 'param2').
-        Returns a dictionary where keys are tuples of parameter values and values are the fit objects.
-        """
-        # Group data by parameter combination columns; adjust column names as needed.
-        grouping_columns = self.params  # e.g., ['param1', 'param2']
-        groups = self.data.groupby(grouping_columns)
+                                                     "seed": 42,
+                                                    #  "output_dir": "output/stan_fits",
+                                                     "adapt_delta": 0.95,}):
         
-        fits = {}
-        diagnostics = {}
-        # Loop over each combination
-        for group_keys, group_data in groups:
-            stan_data = self.prepare_stan_data(group_data)
-            
-            # Compile the Stan model (or cache it outside the loop if same for all groups)
-            model = CmdStanModel(stan_file=self.model_file)
-            
-            # Fit the model
-            fit = model.sample(data=stan_data, **model_fit_params)
-            
-            fits[group_keys] = fit
-            print(f"Fitted parameters for group {group_keys}")
+        for i in range(len(data)):
+        # for i in range(10):
+            # if fit_i exists, skip
+            if os.path.exists(os.path.join(output_path_data, f"fit_{i}")):
+                print(f"Skipping dataset {i}, already fitted.")
+                continue
 
-            # Save the fits to a file
-            output_file = os.path.join(output_path_data, f"fit_{'_'.join(map(str, group_keys))}.csv")
-            fit.save_csvfiles(dir=output_file)
+            data_ = data[i]
 
-            # Save the diagnostic output (str)
-            diagnostics[group_keys] = fit.diagnose()
+            # Compile the Stan model using cmdstanpy.
+            model = CmdStanModel(stan_file=stan_file)
 
-            # Generate figures
-            self._generate_figures_model(fit, output_path_figures)
+            try:
+                # Fit the model using MCMC sampling.
+                fit = model.sample(
+                    data=data_["data_dict"],
+                    **model_fit_params,
+                )
 
-            
-        # add true parameters
-        # Save all fits to a single file
-        all_fits = pd.concat([fit.draws_pd() for fit in fits.values()])
-        all_fits.to_csv(os.path.join(output_path_data, "all_fits.csv"), index=False)
-    
+                fit.save_csvfiles(os.path.join(output_path_data, f"fit_{i}"))
+            except Exception as e:
+                print(f"Error fitting model for dataset {i}: {e}")
+                continue
+        
+        print(f"Model fit completed for {len(data)} datasets.")
+        
+        # Load the fitted models and extract the posterior samples.
+        
+        for i in parameter_names:
+            if os.path.exists(os.path.join(output_path_figures, f"{i}_recovery.png")):
+                print(f"Skipping parameter {i}, already recovered.")
+                continue
 
-        # Generate parameter recovery figures
-        self._generate_figures_recovery(fits, output_path_figures)
+            all_posteriors = []
+            true_params = []
+            for j in range(len(data)):
+            # for j in range(10):
+                try:
+                    fit = cmdstanpy.from_csv(os.path.join(output_path_data, f"fit_{j}"))
+                    posterior_samples = fit.draws_pd(i)
+                    all_posteriors.append(posterior_samples.values)
+                    true_params.append(data[j]['param_combo'][i])
+                except Exception as e:
+                    print(f"Error loading posterior samples for dataset {j}: {e}")
+                    continue
 
-        return fits
+            self._generate_figures_recovery(all_posteriors = all_posteriors, 
+                                                true_params = true_params, 
+                                                parameter_name = i, 
+                                                output_path = output_path_figures)
 
-    def validate_parameters(self):
-        # Implement the parameter validation logic here
-        return
+        pass
