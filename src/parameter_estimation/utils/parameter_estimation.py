@@ -426,7 +426,7 @@ class ParameterEstimation():
             rows, cols = 5, 5
 
             for fig_idx in range(n_figs):
-                fig, axes = plt.subplots(rows, cols, figsize=(12, 10))
+                fig, axes = plt.subplots(rows, cols, figsize=(48, 40))
                 axes = axes.flatten()
                 start = fig_idx * plots_per_fig
                 end   = start + plots_per_fig
