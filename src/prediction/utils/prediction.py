@@ -433,6 +433,11 @@ class Prediction():
         mae_df = pd.DataFrame(mae_dict.items(), columns=['language_task', 'mae'])
         mae_df.to_csv(os.path.join(output_path_data, "mae.csv"), index=False)
 
+        # save grand average mae to csv
+        grand_average_mae = np.mean(list(mae_dict.values()))
+        grand_average_mae_df = pd.DataFrame({'grand_average_mae': [grand_average_mae]})
+        grand_average_mae_df.to_csv(os.path.join(output_path_data, "grand_average_mae.csv"), index=False)
+
         # save mae dict for language to csv
         mae_language_df = pd.DataFrame(mae_language_dict.items(), columns=['language', 'mae'])
         mae_language_df.to_csv(os.path.join(output_path_data, "mae_language.csv"), index=False)
@@ -452,6 +457,8 @@ class Prediction():
         mae_language_df.to_csv(os.path.join(output_path_data, "mae_language_mean.csv"), index=False)
         mae_task_df = pd.DataFrame(mae_task_dict.items(), columns=['task', 'mae'])
         mae_task_df.to_csv(os.path.join(output_path_data, "mae_task_mean.csv"), index=False)
+
+
 
         pass
 
@@ -557,6 +564,12 @@ class Prediction():
         mae_df = pd.DataFrame(mae_dict.items(), columns=['language_task', 'mae'])
         mae_df.to_csv(os.path.join(output_path_data, "mae.csv"), index=False)
 
+        # save grand average mae to csv
+        grand_average_mae = np.mean(list(mae_dict.values()))
+        grand_average_mae_df = pd.DataFrame({'grand_average': "True", 'grand_average_mae': [grand_average_mae]})
+        grand_average_mae_df.to_csv(os.path.join(output_path_data, "grand_average_mae.csv"), index=False)
+
+
         # save mae dict for language to csv
         mae_language_df = pd.DataFrame(mae_language_dict.items(), columns=['language', 'mae'])
         mae_language_df.to_csv(os.path.join(output_path_data, "mae_language.csv"), index=False)
@@ -576,3 +589,41 @@ class Prediction():
         mae_language_df.to_csv(os.path.join(output_path_data, "mae_language_mean.csv"), index=False)
         mae_task_df = pd.DataFrame(mae_task_dict.items(), columns=['task', 'mae'])
         mae_task_df.to_csv(os.path.join(output_path_data, "mae_task_mean.csv"), index=False)
+
+
+
+    def comparison(self, output_path_data):
+        # Create a directory for the output data if it doesn't exist
+        os.makedirs(os.path.join(output_path_data, "comparison"), exist_ok=True)
+
+        # load in the previous mae results and calculate difference between 'thesis' and 'baseline'
+        list_of_csv_names = ["mae.csv", "mae_language_mean.csv", "mae_task_mean.csv", "grand_average_mae.csv"]
+        # create a dict to store the dataframes
+        dataframes_thesis = {}
+        # create a dict to store the dataframes
+        dataframes_baseline = {}
+        # load in the dataframes
+        for csv_name in list_of_csv_names:
+            dataframes_thesis[csv_name] = pd.read_csv(os.path.join(os.path.join(output_path_data, "thesis"), csv_name))
+            dataframes_baseline[csv_name] = pd.read_csv(os.path.join(os.path.join(output_path_data, "baseline"), csv_name))
+        # create a dict to store the differences
+        differences = {}
+        # calculate the differences
+        for csv_name in list_of_csv_names:
+            # merge the two dataframes on the first column
+            df = pd.merge(
+                dataframes_thesis[csv_name],
+                dataframes_baseline[csv_name],
+                on=dataframes_thesis[csv_name].columns[0],
+                suffixes=('_thesis', '_baseline')
+            )
+            # calculate the difference between the two columns
+            if csv_name == "grand_average_mae.csv":
+                print(df)
+                df['difference'] = df['grand_average_mae_thesis'] - df['grand_average_mae_baseline']
+            else:
+                df['difference'] = df.iloc[:, 1] - df.iloc[:, 2]
+            # save the dataframe to a csv file
+            df.to_csv(os.path.join(output_path_data, f"comparison/difference_{csv_name}"), index=False)
+
+        return
