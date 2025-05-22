@@ -332,14 +332,14 @@ class ParameterEstimation():
 
             fit_summary = self.fit.summary()
 
-            fit_summary.to_csv(os.path.join(output_path_data, "stan_fit/summary.csv"), index=True)
+            fit_summary.to_csv(os.path.join(output_path_data, "overview/summary.csv"), index=True)
 
             print("Summary saved.")
             print("Generating diagnostics...")
 
             fit_diagnostics = self.fit.diagnose()
 
-            with open(os.path.join(output_path_data, "stan_fit/diagnostics.txt"), 'w') as f:
+            with open(os.path.join(output_path_data, "overview/diagnostics.txt"), 'w') as f:
                 f.write(fit_diagnostics)
 
             print("Diagnostics saved.")
@@ -440,8 +440,9 @@ class ParameterEstimation():
                     )
                     axes[i-start].set_title(f"Posterior Predictive Check for Model {i + 1}")
             
-            plt.tight_layout()
-            plt.savefig(os.path.join(self.output_path_figures, "model_ppc.png"))
-            plt.close()
+                plt.tight_layout()
+                plt.savefig(os.path.join(self.output_path_figures, f"model_ppc_{fig_idx + 1}.png"))
+                plt.close()
+
 
         pass
