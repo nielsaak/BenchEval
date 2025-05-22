@@ -2,7 +2,7 @@ import os
 from utils.parameter_estimation import ParameterEstimation
 import argparse
 
-# python src/parameter_estimation/main.py --output_path_data output/results/model_centered --model_file src/models/final/simple_model_hierarchical_21052025_centered.stan
+# python src/parameter_estimation/main.py --output_path_data output/results/model_centered --model_file src/models/estimation/hierarchical_centered_estimation.stan
 
 if __name__ == "__main__":
     # Create path
