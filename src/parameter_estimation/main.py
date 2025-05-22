@@ -35,9 +35,9 @@ if __name__ == "__main__":
     parameter_estimation.load_data(data_path=data_path)
 
     # Preprocess data
-    parameter_estimation.preprocess_data(top_n=50,
+    parameter_estimation.preprocess_data(top_n=100,
                                          top_n_path=rank_path,
-                                         test_index_n=5)
+                                         test_index_n=10)
 
     # Save data histograms
     parameter_estimation.data_description_plots()
@@ -52,7 +52,8 @@ if __name__ == "__main__":
                                              model_fit_params={"chains": 4,
                                                      "iter_sampling": 2000,
                                                      "iter_warmup": 1000,
-                                                     "adapt_delta": 0.95,})
+                                                    #  "adapt_delta": 0.95,
+                                                     })
     
     # Produce summary plots
     parameter_estimation.summary_plots()

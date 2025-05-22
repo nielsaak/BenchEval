@@ -420,19 +420,25 @@ class ParameterEstimation():
 
             print("Generating model summary plots...")
 
-            models_to_show = [1,10, 20, 30, 40, 50]
+            # models_to_show = [1,10, 20, 30, 40, 50]
+            plots_per_fig = 25
+            n_figs = 4
+            rows, cols = 5, 5
 
-            fig, axes = plt.subplots(len(models_to_show), 2, figsize=(16, 12))
-            axes = axes.flatten()
+            for fig_idx in range(n_figs):
+                fig, axes = plt.subplots(rows, cols, figsize=(12, 10))
+                axes = axes.flatten()
+                start = fig_idx * plots_per_fig
+                end   = start + plots_per_fig
 
-            for i, val in enumerate(models_to_show):
-                az.plot_ppc(
-                    cmdstanpy_data, 
-                    data_pairs={"y": "y_pred"}, 
-                    coords={"obs_id": np.where(np.array(self.stan_data["group"]) == val)[0]},
-                    ax=axes[i]
-                )
-                axes[i].set_title(f"Posterior Predictive Check for Model {val}")
+                for i in range(start, end):
+                    az.plot_ppc(
+                        cmdstanpy_data, 
+                        data_pairs={"y": "y_pred"}, 
+                        coords={"obs_id": np.where(np.array(self.stan_data["group"]) == i + 1)[0]},
+                        ax=axes[i]
+                    )
+                    axes[i].set_title(f"Posterior Predictive Check for Model {i + 1}")
             
             plt.tight_layout()
             plt.savefig(os.path.join(self.output_path_figures, "model_ppc.png"))
