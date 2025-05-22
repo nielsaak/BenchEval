@@ -32,8 +32,7 @@ parameters {
   sum_to_zero_vector[n_task] beta_task_phi;
 }
 
-transformed parameters {
-
+model {
   vector[N] eta_mu;
   for (i in 1:N) {
     eta_mu[i] = alpha_std[group[i]]
@@ -46,9 +45,8 @@ transformed parameters {
   vector[N] beta_task_phi_idx = beta_task_phi[task];
   eta_phi = phi_alpha + beta_task_phi_idx;
   vector[N] phi = exp(eta_phi);
-}
 
-model {
+
   beta_task_phi ~ normal(0, 2);
   phi_alpha ~ normal(0, 2);
 
@@ -79,8 +77,14 @@ generated quantities {
   vector[N] y_pred;
 
   for (i in 1:N) {
-    real a = mu[i] * phi[i];
-    real b = (1 - mu[i]) * phi[i];
+    real eta_mu = alpha_std[group[i]]
+                  + beta_language_std[group[i], language[i]]
+                  + beta_task_std[group[i], task[i]];
+    real mu = inv_logit(eta_mu);
+    real eta_phi = phi_alpha + beta_task_phi[task[i]];
+    real phi = exp(eta_phi);
+    real a = mu * phi;
+    real b = (1 - mu) * phi;
     y_pred[i] = beta_rng(a, b);
   }
 }
