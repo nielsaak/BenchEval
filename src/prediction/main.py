@@ -40,4 +40,7 @@ if __name__ == "__main__":
                                                     #  "adapt_delta": 0.95,
                                                      })
 
+    prediction.baseline_predictions(output_path_data=os.path.join(output_path_data, "baseline"),
+                                     output_path_figures=os.path.join(output_path_figures, "baseline"),)
+
     print("Prediction completed.")

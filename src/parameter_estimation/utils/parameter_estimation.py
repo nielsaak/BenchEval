@@ -436,9 +436,9 @@ class ParameterEstimation():
                         cmdstanpy_data, 
                         data_pairs={"y": "y_pred"}, 
                         coords={"obs_id": np.where(np.array(self.stan_data["group"]) == i + 1)[0]},
-                        ax=axes[i]
+                        ax=axes[i-start]
                     )
-                    axes[i].set_title(f"Posterior Predictive Check for Model {i + 1}")
+                    axes[i-start].set_title(f"Posterior Predictive Check for Model {i + 1}")
             
             plt.tight_layout()
             plt.savefig(os.path.join(self.output_path_figures, "model_ppc.png"))
