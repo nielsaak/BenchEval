@@ -435,7 +435,7 @@ class Prediction():
 
         # save grand average mae to csv
         grand_average_mae = np.mean(list(mae_dict.values()))
-        grand_average_mae_df = pd.DataFrame({'grand_average_mae': [grand_average_mae]})
+        grand_average_mae_df = pd.DataFrame({'grand_average': "True", 'grand_average_mae': [grand_average_mae]})
         grand_average_mae_df.to_csv(os.path.join(output_path_data, "grand_average_mae.csv"), index=False)
 
         # save mae dict for language to csv
@@ -627,3 +627,131 @@ class Prediction():
             df.to_csv(os.path.join(output_path_data, f"comparison/difference_{csv_name}"), index=False)
 
         return
+    
+    def alternative_baseline_predictions(self, output_path_data, output_path_figures):
+        """
+        Generate baseline predictions.
+        """
+
+        # Get the unique languages and tasks
+        unique_languages = self.data['language'].unique()
+        unique_tasks = self.data['task'].unique()
+        # Get the unique models
+        unique_models = self.data['model'].unique()
+
+        # calculate mean for each task and use for baseline prediction
+        # create a dict to store the mean for each task
+        task_means = {}
+
+
+        mae_dict = {}
+
+        for i, stan_data in enumerate(self.stan_data_list):
+
+            # Create a directory for the output data if it doesn't exist
+            os.makedirs(output_path_data, exist_ok=True)
+
+            # Create a directory for the output figures if it doesn't exist
+            os.makedirs(output_path_figures, exist_ok=True)
+
+            print(f"Stan data prepared for prediction on {stan_data['language']} and {stan_data['task']}.")
+
+            # Compile the Stan model using cmdstanpy.
+            try:
+                
+                df = pd.DataFrame({
+                    'y': stan_data['stan_data']["y"],
+                    'group': stan_data['stan_data']["group"],
+                    'task': stan_data['stan_data']["task"],
+                })
+
+                # 1) filter to only the "jumping" rows
+                # df_task = df[df['task'] == stan_data['task_id'][0]]
+
+                # 2) group by participant and take the mean of y
+                mean_per_llm = df.groupby('group')['y'].mean()
+
+                # print(f"Mean per LLM for {stan_data['task'][0]}: {mean_per_llm}")
+
+                # print("Generating prediction plot...")
+
+                stan_data_language = self.language_map[stan_data['language'][0]]
+
+                df_test = pd.DataFrame({
+                    'y_test': stan_data['stan_data']["y_test"],
+                    'group_test': stan_data['stan_data']["group_test"],
+                })
+
+                # 3) merge the two dataframes on group
+                df_test = df_test.merge(mean_per_llm, left_on='group_test', right_index=True, how='left')
+
+                diff = df_test['y'] - df_test['y_test']
+                plt.figure()
+                plt.scatter(np.arange(len(diff)), diff)
+                plt.axhline(0, color='red', linestyle='--')
+                plt.xlabel("Index")
+                plt.ylabel("Difference")
+                plt.title(f"Prediction Differences for: {stan_data['task'][0]} in {stan_data_language}")
+                plt.savefig(os.path.join(output_path_figures, f"prediction_difference_{stan_data['language'][0]}_{stan_data['task'][0]}.png"))
+                plt.close()
+
+                print("Plot saved.")
+                print("Calculating Mean Absolute Error...")
+
+                mae = np.mean(np.abs(diff))
+                print(f"Mean Absolute Error: {mae}")
+
+                # save mae to dict
+                mae_dict[f"{stan_data['language']}_{stan_data['task']}"] = mae
+            
+            except Exception as e:
+                print(f"Error fitting model: {e}")
+                continue
+            
+         # create a new dict that has all languages as keys and a list of mae values as values
+        mae_language_dict = {}
+        mae_task_dict = {}
+        for key, value in mae_dict.items():
+            language, task = key.split('_')
+            if language not in mae_language_dict:
+                mae_language_dict[language] = []
+            if task not in mae_task_dict:
+                mae_task_dict[task] = []
+            mae_language_dict[language].append(value)
+            mae_task_dict[task].append(value)
+        # calculate mean mae for each language
+        # for key, value in mae_language_dict.items():
+        #     mae_language_dict[key] = np.mean(value)
+        # # calculate mean mae for each task
+        # for key, value in mae_task_dict.items():
+        #     mae_task_dict[key] = np.mean(value)
+
+        # save mae dict to csv
+        mae_df = pd.DataFrame(mae_dict.items(), columns=['language_task', 'mae'])
+        mae_df.to_csv(os.path.join(output_path_data, "mae.csv"), index=False)
+
+        # save grand average mae to csv
+        grand_average_mae = np.mean(list(mae_dict.values()))
+        grand_average_mae_df = pd.DataFrame({'grand_average': "True", 'grand_average_mae': [grand_average_mae]})
+        grand_average_mae_df.to_csv(os.path.join(output_path_data, "grand_average_mae.csv"), index=False)
+
+
+        # save mae dict for language to csv
+        mae_language_df = pd.DataFrame(mae_language_dict.items(), columns=['language', 'mae'])
+        mae_language_df.to_csv(os.path.join(output_path_data, "mae_language.csv"), index=False)
+
+        # save mae dict for task to csv
+        mae_task_df = pd.DataFrame(mae_task_dict.items(), columns=['task', 'mae'])
+        mae_task_df.to_csv(os.path.join(output_path_data, "mae_task.csv"), index=False)
+
+        # calculate mean mae for each language
+        for key, value in mae_language_dict.items():
+            mae_language_dict[key] = np.mean(value)
+        # calculate mean mae for each task
+        for key, value in mae_task_dict.items():
+            mae_task_dict[key] = np.mean(value)
+        # save mae dict to csv
+        mae_language_df = pd.DataFrame(mae_language_dict.items(), columns=['language', 'mae'])
+        mae_language_df.to_csv(os.path.join(output_path_data, "mae_language_mean.csv"), index=False)
+        mae_task_df = pd.DataFrame(mae_task_dict.items(), columns=['task', 'mae'])
+        mae_task_df.to_csv(os.path.join(output_path_data, "mae_task_mean.csv"), index=False)

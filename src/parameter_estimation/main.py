@@ -45,7 +45,7 @@ if __name__ == "__main__":
     # Prepare data for Stan
     parameter_estimation.prepare_data_for_stan()
 
-    # Run parameter estimation
+    # # Run parameter estimation
     parameter_estimation.estimate_parameters(stan_file=model_file,
                                              output_path_data=output_path_data,
                                              output_path_figures=output_path_figures,
@@ -57,5 +57,10 @@ if __name__ == "__main__":
     
     # Produce summary plots
     parameter_estimation.summary_plots()
+
+    # compare rank in model and data
+    parameter_estimation.rank_comparison(rank_path = rank_path,
+                                         output_path_data=output_path_data,
+                                         output_path_figures=output_path_figures)
 
     print("Parameter estimation completed.")

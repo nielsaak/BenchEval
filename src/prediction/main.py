@@ -31,17 +31,20 @@ if __name__ == "__main__":
     prediction.prepare_data_for_stan()
 
     # Run prediction
-    # prediction.make_predictions(stan_file=model_file,
-    #                                          output_path_data=os.path.join(output_path_data, "thesis"),
-    #                                          output_path_figures=os.path.join(output_path_figures, "thesis"),
-    #                                          model_fit_params={"chains": 1,
-    #                                                  "iter_sampling": 1000,
-    #                                                  "iter_warmup": 500,
-    #                                                 #  "adapt_delta": 0.95,
-    #                                                  })
+    prediction.make_predictions(stan_file=model_file,
+                                             output_path_data=os.path.join(output_path_data, "thesis"),
+                                             output_path_figures=os.path.join(output_path_figures, "thesis"),
+                                             model_fit_params={"chains": 1,
+                                                     "iter_sampling": 1000,
+                                                     "iter_warmup": 500,
+                                                    #  "adapt_delta": 0.95,
+                                                     })
 
     prediction.baseline_predictions(output_path_data=os.path.join(output_path_data, "baseline"),
                                      output_path_figures=os.path.join(output_path_figures, "baseline"),)
+    
+    prediction.alternative_baseline_predictions(output_path_data=os.path.join(output_path_data, "alternative_baseline"),
+                                                 output_path_figures=os.path.join(output_path_figures, "alternative_baseline"),)
 
     prediction.comparison(output_path_data=output_path_data)
 

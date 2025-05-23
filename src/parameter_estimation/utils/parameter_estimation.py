@@ -254,13 +254,12 @@ class ParameterEstimation():
         # if value == 1 subtract 1e-5
         df['value'] = df['value'].replace(1, 1 - 1e-5)
 
-        # change name of models to numbers starting from 1
-        df['model'] = df['model'].map({name: i + 1 for i, name in enumerate(df['model'].unique())})
-
         # limit the number of models
         if limit_models is not None:
+            # change name of models to numbers starting from 1
+            df['model_id'] = df['model'].map({name: i + 1 for i, name in enumerate(df['model'].unique())})
             model_list = list(range(1, limit_models))
-            df = df[df['model'].isin(model_list)]
+            df = df[df['model_id'].isin(model_list)]
 
 
         # Convert the DataFrame to a dictionary format suitable for Stan
@@ -290,6 +289,12 @@ class ParameterEstimation():
         self.model_mapping = model_mapping
         self.task_mapping = task_mapping
         self.language_mapping = language_mapping
+
+        # Save the mappings to CSV files
+        os.makedirs(self.output_path_data, exist_ok=True)
+        pd.DataFrame(list(model_mapping.items()), columns=['model', 'model_id']).to_csv(os.path.join(self.output_path_data, "model_mapping.csv"), index=False)
+        pd.DataFrame(list(task_mapping.items()), columns=['task', 'task_id']).to_csv(os.path.join(self.output_path_data, "task_mapping.csv"), index=False)
+        pd.DataFrame(list(language_mapping.items()), columns=['language', 'language_id']).to_csv(os.path.join(self.output_path_data, "language_mapping.csv"), index=False)
     
     def estimate_parameters(self,
                             stan_file: str,
@@ -308,6 +313,11 @@ class ParameterEstimation():
         :param output_path_data: Path to save output data.
         :param output_path_figures: Path to save output figures.
         """
+
+        os.makedirs(self.output_path_figures, exist_ok=True)
+        os.makedirs(os.path.join(output_path_data, "overview"), exist_ok=True)
+        os.makedirs(os.path.join(output_path_data, "stan_fit"), exist_ok=True)
+
         # Compile the Stan model using cmdstanpy.
         if os.path.exists(os.path.join(output_path_data, "stan_fit")):
                 print(f"Model already fitted.")
@@ -446,3 +456,51 @@ class ParameterEstimation():
 
 
         pass
+
+    def rank_comparison(self, rank_path, output_path_data, output_path_figures):
+        
+        # read summary csv
+        df = pd.read_csv(os.path.join(output_path_data, "overview/summary.csv"))
+        df = df[df["Unnamed: 0"].str.contains("alpha_std")]
+        # only keep columns Unnamed: 0, Mean, 5%, 50%, 95%
+        df = df[["Unnamed: 0", "Mean", "5%", "50%", "95%"]]
+        # extract the number in the Unnamed: 0 column
+        df["model_id"] = df["Unnamed: 0"].str.extract(r'(\d+)').astype(int)
+
+        # read in model mapping
+        model_mapping = pd.read_csv(os.path.join(self.output_path_data, "model_mapping.csv"))
+        # from model extract the last string after a / and before </a>
+        model_mapping["model_name"] = model_mapping["model"].str.extract(r'\/([^\/]+)<\/a>')[0]
+        # join df and model_mapping on model_id
+        df = df.merge(model_mapping[["model_id", "model_name"]], on="model_id")
+        # sort according to mean
+        df = df.sort_values(by="Mean", ascending=False)
+        df.reset_index(drop=True, inplace=True)
+
+        df_euro = pd.read_csv(rank_path)
+        df_euro = df_euro[~df_euro['model'].str.contains('zero-shot', na=False)]
+        df_euro['model'] = df_euro['model'].str.replace(r' \(few-shot\)', '', regex=True)
+        df_euro['model'] = df_euro['model'].str.replace(r' \(few-shot, val\)', '', regex=True)
+        df_euro["model_name"] = df_euro["model"].str.extract(r'\/([^\/]+)<\/a>')[0]
+        df_euro_100 = df_euro.nsmallest(100, 'rank')
+        df_euro_100.reset_index(drop=True, inplace=True)
+
+        list1 = df_euro_100["model_name"]  # Your first ranked list
+        list2 = df["model_name"]  # Your second ranked list
+
+        rank1 = {item: idx for idx, item in enumerate(list1)}
+        rank2 = {item: idx for idx, item in enumerate(list2)}
+
+        x = [rank1[item] for item in list1]
+        y = [rank2[item] for item in list1]
+
+        plt.scatter(x, y)
+        plt.plot([0, 100], [0, 100], 'r--')  # Ideal diagonal
+        plt.xlabel("Rank on EuroEval")
+        plt.ylabel("Rank according to Model")
+        plt.title("Rank Comparison")
+
+        # Save the plot to file
+        output_file = os.path.join(output_path_figures, "rank_comparison.png")
+        plt.savefig(output_file)
+        plt.close()
