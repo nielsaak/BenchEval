@@ -52,7 +52,7 @@ if __name__ == "__main__":
                                              model_fit_params={"chains": 4,
                                                      "iter_sampling": 2000,
                                                      "iter_warmup": 1000,
-                                                    #  "adapt_delta": 0.95,
+                                                     "adapt_delta": 0.9,
                                                      })
     
     # Produce summary plots
