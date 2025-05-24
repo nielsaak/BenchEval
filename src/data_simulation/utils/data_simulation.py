@@ -6,6 +6,7 @@ from scipy.stats import beta
 import itertools
 import pickle
 import os
+from scipy.stats import gaussian_kde
 
 class DataSimulation():
     def __init__(self):
@@ -20,36 +21,71 @@ class DataSimulation():
             if m == 0:
                 if n == 1:
                     return np.array([0.])
-                arr = np.random.uniform(-1, 1, size=n-1)
+                arr = np.random.uniform(-1.5, 1.5, size=n-1)
                 return np.append(arr, -arr.sum())
             else:
-                arr = np.random.uniform(-1, 1, size=(m, n-1))
+                arr = np.random.uniform(-1.5, 1.5, size=(m, n-1))
                 last_col = -arr.sum(axis=1, keepdims=True)
                 return np.hstack([arr, last_col])
 
         # insert specification of hyperparameters here that are relevant for the data simulation
-        self.parameters = {
-            "mu_alpha": [-0.5,-0.2,-0.1,0.0,0.1,0.2,0.5],
+        parameters = {
+            "mu_alpha": [-0.5, -0.2, -0.1, 0.0, 0.1, 0.2, 0.5],
             "sigma_alpha": [0.1, 0.2, 0.5, 0.7, 1.0],
-            "alpha_std": np.random.normal(0, 1, size=L),
+            # "alpha_std": [np.random.normal(0, 1, size=L) for _ in range(245)],
 
-            "mu_beta_language": _generate_zero_sum_array(K_1),
-            "mu_beta_task": _generate_zero_sum_array(K_2),
-            "sigma_beta_language": np.random.lognormal(-1, 1, size=(K_1)),
-            "sigma_beta_task": np.random.lognormal(-1, 1, size=(K_2)),
-            "beta_language_std": _generate_zero_sum_array(K_1, L),
-            "beta_task_std": _generate_zero_sum_array(K_2, L),
+            "mu_beta_language": [_generate_zero_sum_array(K_1) for _ in range(245)],
+            "mu_beta_task": [_generate_zero_sum_array(K_2) for _ in range(245)],
+            "sigma_beta_language": [np.random.exponential(1, size=K_1) for _ in range(245)],
+            "sigma_beta_task": [np.random.exponential(1, size=K_2) for _ in range(245)],
+            # "beta_language_std": [_generate_zero_sum_array(K_1, L) for _ in range(245)],
+            # "beta_task_std": [_generate_zero_sum_array(K_2, L) for _ in range(245)],
 
             "phi_alpha": [0.1, 1, 2, 3, 4, 5, 10],
-            "beta_task_phi": _generate_zero_sum_array(K_2),
+            "beta_task_phi": [_generate_zero_sum_array(K_2) for _ in range(245)],
         }
 
+        self.parameters = parameters
         self.L = L
         self.K_1 = K_1
         self.K_2 = K_2
         self.n_repetitions = n_repetitions
-        
-    def simulate_from_params(self):
+
+
+    def plot_parameters(self, output_path):
+        """
+        Plot the parameters used for data simulation.
+
+        Parameters
+        ----------
+        output_path: str
+            Path to save the plots.
+        """
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+        for key, values in self.parameters.items():
+            plt.figure(figsize=(10, 6))
+            if isinstance(values[0], (list, np.ndarray)):
+                # If values are lists or arrays, plot each one separately
+                flattened = np.concatenate([np.array(val).ravel() for val in values])
+            else:
+                # If values are single numbers, flatten them into a 1D array
+                flattened = np.array(values).ravel()
+            plt.hist(flattened, bins=30, density=True, alpha=0.6, label=key, edgecolor='black')
+            density = gaussian_kde(flattened)
+            xs = np.linspace(flattened.min(), flattened.max(), 100)
+            plt.plot(xs, density(xs), color='red', marker='o', linestyle='-', markersize=3)
+            plt.title(f'Parameter: {key}')
+            plt.xlabel('Index')
+            plt.ylabel('Value')
+            # plt.legend()
+            plt.grid()
+            plt.savefig(os.path.join(output_path, f'{key}.png'))
+            plt.close()
+
+    def simulate_from_params(self,
+                             output_path_figure,):
         """
         Simulate beta-distributed data based on the provided parameter dictionary.
 
@@ -73,6 +109,7 @@ class DataSimulation():
             - 'data_dict': dict, containing N, K, K1, K2, J, L, X_subject, Z, idx, y
             - 'fig': matplotlib.figure.Figure, histogram of y
         """
+
         # Unpack parameters
         params = self.parameters
         L = self.L
@@ -81,7 +118,9 @@ class DataSimulation():
         n_repetitions = self.n_repetitions
 
         # Identify keys to loop over (those with list-like values)
-        loop_keys = [k for k, v in params.items() if isinstance(v, (list, np.ndarray)) and not isinstance(v, np.ndarray) or isinstance(v, list)]
+        # loop_keys = [k for k, v in params.items() if isinstance(v, (list, np.ndarray)) and not isinstance(v, np.ndarray) or isinstance(v, list)]
+        loop_keys = ['mu_alpha', 'sigma_alpha', 'phi_alpha',]
+
         # Build list of values for product
         loop_values = [params[k] for k in loop_keys]
         results = []
@@ -93,16 +132,29 @@ class DataSimulation():
             for k, val in zip(loop_keys, combo):
                 combo_dict[k] = val
 
+            # for k in combo_dict.keys() not in loop_keys:
+            for k in params.keys():
+                if k not in loop_keys:
+                    combo_dict[k] = combo_dict[k][iter]
+
             # Unpack hyperparameters
             mu_alpha = combo_dict['mu_alpha']
             sigma_alpha = combo_dict['sigma_alpha']
-            alpha_std = np.asarray(combo_dict['alpha_std'])
+            # alpha_std = np.asarray(combo_dict['alpha_std'])
+            alpha_std = np.random.normal(mu_alpha, sigma_alpha, size=L)  # Generate random alpha_std for each participant
+            combo_dict['alpha_std'] = alpha_std
             mu_beta_language = np.asarray(combo_dict['mu_beta_language'])
             mu_beta_task = np.asarray(combo_dict['mu_beta_task'])
             sigma_beta_language = np.asarray(combo_dict['sigma_beta_language'])
             sigma_beta_task = np.asarray(combo_dict['sigma_beta_task'])
-            beta_language_std = np.asarray(combo_dict['beta_language_std'])
-            beta_task_std = np.asarray(combo_dict['beta_task_std'])
+            # beta_language_std = np.asarray(combo_dict['beta_language_std'])
+            beta_language_std = np.random.normal(mu_beta_language, sigma_beta_language, size=(L, K1))  # Generate random beta_language_std for each participant
+            combo_dict['beta_language_std'] = beta_language_std
+            # beta_language_std = _generate_zero_sum_array(K1, L, mu_beta_language, sigma_beta_language)
+            # beta_task_std = np.asarray(combo_dict['beta_task_std'])
+            beta_task_std = np.random.normal(mu_beta_task, sigma_beta_task, size=(L, K2))  # Generate random beta_task_std for each participant
+            combo_dict['beta_task_std'] = beta_task_std
+            # beta_task_std = _generate_zero_sum_array(K2, L, mu_beta_task, sigma_beta_task)
             phi_alpha = combo_dict['phi_alpha']
             beta_task_phi = np.asarray(combo_dict['beta_task_phi'])
 
@@ -117,9 +169,12 @@ class DataSimulation():
             )
 
             # Compute population parameters
-            alpha_mu = mu_alpha + sigma_alpha * alpha_std
-            beta_mu_1 = mu_beta_language + sigma_beta_language * beta_language_std
-            beta_mu_2 = mu_beta_task + sigma_beta_task * beta_task_std
+            # alpha_mu = mu_alpha + sigma_alpha * alpha_std
+            alpha_mu = alpha_std
+            # beta_mu_1 = mu_beta_language + sigma_beta_language * beta_language_std
+            beta_mu_1 = beta_language_std
+            # beta_mu_2 = mu_beta_task + sigma_beta_task * beta_task_std
+            beta_mu_2 = beta_task_std
 
             # Index by participant
             beta_mu_1_idx = beta_mu_1[df['model']]
@@ -135,7 +190,15 @@ class DataSimulation():
             phi = np.clip(phi, 1e-5, None)
             A = mu * phi
             B = (1 - mu) * phi
+            if np.any(A < 0) or np.any(B < 0):
+                print("Warning: A or B contains negative values. Adjusting to non-negative.")
+                A = np.clip(A, 1e-5, None)
+                B = np.clip(B, 1e-5, None)
             y = beta.rvs(A, B)
+
+            # y values below 0.0001 are set to 0.0001, and values above 0.9999 are set to 0.9999
+            # This is to avoid numerical issues in further processing
+            y = np.clip(y, 0.0001, 0.9999)
 
             # Package data
             data_dict = {
@@ -150,11 +213,17 @@ class DataSimulation():
             }
 
             # Plot histogram
-            # fig, ax = plt.subplots()
-            # ax.hist(y, bins=20, edgecolor='black')
-            # ax.set_title(f"Histogram of y (combo: {dict(zip(loop_keys, combo))})")
-            # ax.set_xlabel('y')
-            # ax.set_ylabel('Frequency')
+            if iter % 10 == 0:
+                print(f"Plotting histogram for iteration {iter}")
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.hist(y, bins=20, edgecolor='black')
+                ax.set_title(f"Histogram of y (combo: {dict(zip(loop_keys, combo))})")
+                ax.set_xlabel('y')
+                ax.set_ylabel('Frequency')
+                plt.tight_layout()
+                plt.savefig(os.path.join(output_path_figure, f"histogram_iter_{iter}.png"))
+                plt.close(fig)
+
 
             results.append({'param_combo': combo_dict,
                             'data_dict': data_dict})

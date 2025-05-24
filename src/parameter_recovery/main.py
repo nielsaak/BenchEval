@@ -7,15 +7,14 @@ if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
     output_path_figures = os.path.join(current_dir, "output/figures")
     output_path_data = os.path.join(current_dir, "output/stan_fits")
+    os.makedirs(output_path_figures, exist_ok=True)
+    os.makedirs(output_path_data, exist_ok=True)
 
     # Load data
     data_path = os.path.join(current_dir, "../data_simulation/output/results/data.pkl")
 
     # Model file path
-    model_file = os.path.join(current_dir, "../models/hierarchical/simple_model_hierarchical_18052025_v2.stan")
-
-    # Parameter names to recover
-    # params = ["param1", "param2"]
+    model_file = os.path.join(current_dir, "../models/recovery/hierarchical_centered_recovery.stan")
 
     # Create an instance of ParameterRecovery
     parameter_recovery = ParameterRecovery()
