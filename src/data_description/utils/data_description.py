@@ -54,7 +54,7 @@ class DataDescription():
 
         self.data = pd.DataFrame(rows)
 
-    def preprocess_data(self):
+    def preprocess_data(self, top_n = None, top_n_path = None):
         """
         Preprocess the loaded data.
         """
@@ -138,6 +138,9 @@ class DataDescription():
             if task in primary_metrics:
                 return metric == primary_metrics[task]
             return False
+        
+        # remove where df_full["generative"] is false
+        df_full = df_full[df_full["generative"] == True]
 
         # Apply the filter to the DataFrame
         df_full = df_full[df_full.apply(filter_primary_metric, axis=1)]
@@ -158,6 +161,14 @@ class DataDescription():
             'is': 'Icelandic',
         }
 
+        if top_n is not None:
+            df_euro = pd.read_csv(top_n_path)
+            df_euro = df_euro[~df_euro['model'].str.contains('zero-shot', na=False)]
+            df_euro['model'] = df_euro['model'].str.replace(r' \(few-shot\)', '', regex=True)
+            df_euro['model'] = df_euro['model'].str.replace(r' \(few-shot, val\)', '', regex=True)
+            df_euro_100 = df_euro.nsmallest(top_n, 'rank')
+            df_full = df_full[df_full['model'].isin(df_euro_100['model'].tolist())]
+
         df_full['language'] = df_full['language'].replace(language_map)
 
         print(f"Unique tasks: {df_full['task'].unique()}")
@@ -177,21 +188,22 @@ class DataDescription():
         ncols = 3  # You can adjust the number of columns as needed
         nrows = math.ceil(n_plots / ncols)
 
-        fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 5, nrows * 4))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 4, nrows * 3))
         axes = axes.flatten()
 
         for ax, (val, group) in zip(axes, groups):
             group['value'].plot.hist(bins=30, edgecolor='black', ax=ax)
-            ax.set_title(f"{group_by}: {val}")
+            ax.set_title(f"{group_by.capitalize()}: {val[0].capitalize()}")
             ax.set_xlabel("Value")
             ax.set_ylabel("Frequency")
+            ax.set_xlim(0, 1)
 
         # Remove unused subplots if there are any
         for ax in axes[len(groups):]:
             ax.remove()
 
         # Add an overall title to the full figure
-        fig.suptitle(f"Overall Histograms by {group_by}", fontsize=16)
+        fig.suptitle(f"Histograms by {group_by.capitalize()}", fontsize=16)
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         
         # Save the figure
