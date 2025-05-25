@@ -2,29 +2,18 @@ import os
 from utils.parameter_estimation import ParameterEstimation
 import argparse
 
-# python src/parameter_estimation/main.py --output_path_data output/results/model_centered --model_file src/models/estimation/hierarchical_centered_estimation.stan
-
 if __name__ == "__main__":
     # Create path
     current_dir = os.path.dirname(os.path.abspath(__file__))
     output_path_figures = os.path.join(current_dir, "output/figures")
-    # output_path_data = os.path.join(current_dir, "output/results/model_50")
-
-    parser = argparse.ArgumentParser(description="Parameter Estimation Paths")
-    parser.add_argument("--output_path_data", type=str, required=True,
-                        help="Output path for data results")
-    parser.add_argument("--model_file", type=str, required=True,
-                        help="Path to the Stan model file")
-    args = parser.parse_args()
-
-    output_path_data = os.path.join(current_dir, args.output_path_data)
+    output_path_data = os.path.join(current_dir, "output/results")
 
     # Load data
     data_path = "data/results.processed (1).jsonl"
     rank_path = "data/european_all_simplified.csv"
 
     # Model file path
-    model_file = args.model_file
+    model_file = "src/models/estimation/hierarchical_centered_estimation.stan"
 
     # Create an instance of ParameterEstimation
     parameter_estimation = ParameterEstimation(model_file=model_file,
@@ -52,7 +41,8 @@ if __name__ == "__main__":
                                              model_fit_params={"chains": 4,
                                                      "iter_sampling": 2000,
                                                      "iter_warmup": 1000,
-                                                     "adapt_delta": 0.9,
+                                                     "seed": 123,
+                                                     "adapt_delta": 0.95,
                                                      })
     
     # Produce summary plots

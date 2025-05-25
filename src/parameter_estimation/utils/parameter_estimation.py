@@ -316,7 +316,6 @@ class ParameterEstimation():
 
         os.makedirs(self.output_path_figures, exist_ok=True)
         os.makedirs(os.path.join(output_path_data, "overview"), exist_ok=True)
-        os.makedirs(os.path.join(output_path_data, "stan_fit"), exist_ok=True)
 
         # Compile the Stan model using cmdstanpy.
         if os.path.exists(os.path.join(output_path_data, "stan_fit")):
@@ -334,6 +333,8 @@ class ParameterEstimation():
             
             print("Fitting completed.")
             print("Saving results...")
+
+            os.makedirs(os.path.join(output_path_data, "stan_fit"), exist_ok=True)
             
             self.fit.save_csvfiles(os.path.join(output_path_data, "stan_fit"))
 
@@ -382,6 +383,7 @@ class ParameterEstimation():
 
             az.plot_ppc(cmdstanpy_data, 
                 data_pairs={"y":"y_pred"})
+            plt.xlabel('y')
 
             plt.savefig(os.path.join(self.output_path_figures, "overall_ppc.png"))
             plt.close()
@@ -398,10 +400,15 @@ class ParameterEstimation():
                     cmdstanpy_data, 
                     data_pairs={"y": "y_pred"}, 
                     coords={"obs_id": np.where(np.array(self.stan_data["language"]) == i)[0]},
-                    ax=axes[i-1]
+                    ax=axes[i-1],
+                    legend=False
                 )
-                axes[i-1].set_title(f"Posterior Predictive Check for Language {i}")
-
+                axes[i-1].set_xlabel('y')
+                axes[i-1].set_title(f"Language: {next((k for k, v in self.language_mapping.items() if v == i), "Unknown")}")
+            
+            handles, labels = axes[0].get_legend_handles_labels()
+            fig.legend(handles, labels, loc='lower center', ncol=len(labels), bbox_to_anchor=(0.5, -0.04))
+            plt.suptitle(f'Posterior Predictive Check: Language')
             plt.tight_layout()
             plt.savefig(os.path.join(self.output_path_figures, "language_ppc.png"))
             plt.close()
@@ -410,7 +417,7 @@ class ParameterEstimation():
 
             print("Generating task summary plots...")
 
-            fig, axes = plt.subplots(3, 4, figsize=(16, 12))
+            fig, axes = plt.subplots(3, 3, figsize=(12, 12))
             axes = axes.flatten()
 
             for i in range(1, self.stan_data["n_task"] + 1):
@@ -418,10 +425,18 @@ class ParameterEstimation():
                     cmdstanpy_data, 
                     data_pairs={"y": "y_pred"}, 
                     coords={"obs_id": np.where(np.array(self.stan_data["task"]) == i)[0]},
-                    ax=axes[i-1]
+                    ax=axes[i-1],
+                    legend=False
                 )
-                axes[i-1].set_title(f"Posterior Predictive Check for Task {i}")
+                axes[i-1].set_xlabel('y')
+                axes[i-1].set_title(f"Task: {next((k for k, v in self.task_mapping.items() if v == i), "Unknown")}")
 
+            for ax in axes[self.stan_data["n_task"]:]:
+                ax.remove()
+
+            handles, labels = axes[0].get_legend_handles_labels()
+            fig.legend(handles, labels, loc='lower center', ncol=len(labels), bbox_to_anchor=(0.5, -0.04))
+            plt.suptitle(f'Posterior Predictive Check: Task')
             plt.tight_layout()
             plt.savefig(os.path.join(self.output_path_figures, "task_ppc.png"))
             plt.close()
@@ -436,7 +451,7 @@ class ParameterEstimation():
             rows, cols = 5, 5
 
             for fig_idx in range(n_figs):
-                fig, axes = plt.subplots(rows, cols, figsize=(48, 40))
+                fig, axes = plt.subplots(rows, cols, figsize=(20, 20))
                 axes = axes.flatten()
                 start = fig_idx * plots_per_fig
                 end   = start + plots_per_fig
@@ -446,10 +461,15 @@ class ParameterEstimation():
                         cmdstanpy_data, 
                         data_pairs={"y": "y_pred"}, 
                         coords={"obs_id": np.where(np.array(self.stan_data["group"]) == i + 1)[0]},
-                        ax=axes[i-start]
+                        ax=axes[i-start],
+                        legend=False
                     )
-                    axes[i-start].set_title(f"Posterior Predictive Check for Model {i + 1}")
-            
+                    axes[i-1].set_xlabel('y')
+                    axes[i-start].set_title(f"LLM {i + 1}")
+
+                handles, labels = axes[0].get_legend_handles_labels()
+                fig.legend(handles, labels, loc='lower center', ncol=len(labels), bbox_to_anchor=(0.5, -0.04))
+                plt.suptitle(f'Posterior Predictive Check: LLM')
                 plt.tight_layout()
                 plt.savefig(os.path.join(self.output_path_figures, f"model_ppc_{fig_idx + 1}.png"))
                 plt.close()
