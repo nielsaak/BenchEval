@@ -342,13 +342,123 @@ class ParameterRecovery():
         ax.set_title(f'Parameter Recovery: {title_mappings.get(parameter_name)}')
         ax.set_xlabel('True Value')
         ax.set_ylabel('Posterior Estimate')
-        ax.set_xlim(-3, 3)
-        ax.set_ylim(-3, 3)
+        # if parameter_name contains sigma use 0 to 3, else use -3 to 3
+        if "sigma" in parameter_name:
+            ax.set_xlim(0, 4)
+            ax.set_ylim(0, 4)
+        elif "phi_alpha" in parameter_name:
+            ax.set_xlim(0, 4)
+            ax.set_ylim(0, 4)
+        else:
+            ax.set_xlim(-3, 3)
+            ax.set_ylim(-3, 3)
         # plt.suptitle(f'Parameter Recovery: {point_estimate.capitalize()}')
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         output_file = os.path.join(output_path, f"{parameter_name}_recovery.png")
         plt.savefig(output_file)
         plt.close()
+
+    def _generate_figures_recovery_kde(self, all_posteriors, true_params, parameter_name, output_path, point_estimate):
+            title_mappings = {
+                "mu_alpha": r"Population Level: $\mu_{\alpha}$",
+                "sigma_alpha": r"Population Level: $\sigma_{\alpha}$",
+                "alpha_std": r'Model Specific: $\alpha$',
+                "mu_beta_language": r'Population Level: $\mu_{\beta 1}$',
+                "mu_beta_task": r'Population Level: $\mu_{\beta 2}$',
+                "sigma_beta_language": r'Population Level: $\sigma_{\beta}$',
+                "sigma_beta_task": r'Population Level: $\sigma_{\beta}$',
+                "beta_language_std": r'Model Specific: $\beta 1$',
+                "beta_task_std": r'Model Specific: $\beta 2$',
+                "phi_alpha": r'Population Level: $\phi_{\alpha}$',
+                "beta_task_phi": r'Population Level: $\phi_{\beta}$'
+            }
+
+            fig, ax = plt.subplots(figsize=(8, 6))
+
+            # Case 1: Each true parameter is a single number (or a 1-element vector)
+            if isinstance(true_params[0], (float, int)):
+                # Expect each posterior sample to be of shape (n_samples, K),
+                # where K could be >1 but we plot all points on a single axis.
+                K = all_posteriors[0].shape[1]
+                n_runs = len(all_posteriors)
+                for run_idx, (true_val, samples) in enumerate(zip(true_params, all_posteriors)):
+                    for k in range(K):
+                        # For scalar parameters K will be 1; for vector parameters this loops over each element.
+                        if point_estimate == "mean":
+                            est = np.mean(samples[:, k])
+                        elif point_estimate == "median":
+                            est = np.median(samples[:, k])
+                        else:
+                            raise ValueError(f"Unknown point estimate: {point_estimate}")
+                        # If parameter is scalar, true_val may be a number; if vector, expect a list-like
+                        t_val = true_val if K == 1 else true_val[k]
+                        # sns.scatterplot(
+                        #     x=[t_val], y=[est], marker='o', s=30, color='tab:blue', ax=ax)
+                        sns.kdeplot(x=[t_val], y=[est], fill=True, cmap="inferno", ax=ax)
+                        # ax.plot(t_val, est, marker='o', linestyle='none', markersize=6, color='tab:blue')
+
+            # Case 2: Each true parameter is a 1D array (vector)
+            elif len(true_params[0].shape) == 1:
+                K = all_posteriors[0].shape[1]
+                n_runs = len(all_posteriors)
+                for run_idx, (true_arr, samples) in enumerate(zip(true_params, all_posteriors)):
+                    for k in range(K):
+                        if point_estimate == "mean":
+                            est = np.mean(samples[:, k])
+                        elif point_estimate == "median":
+                            est = np.median(samples[:, k])
+                        else:
+                            raise ValueError(f"Unknown point estimate: {point_estimate}")
+                        t_val = true_arr[k]
+                        # sns.scatterplot(
+                        #     x=[t_val], y=[est], marker='o', s=30, color='tab:blue', ax=ax)
+                        sns.kdeplot(x=[t_val], y=[est], fill=True, cmap="inferno", ax=ax)
+                        # ax.plot(t_val, est, marker='o', linestyle='none', markersize=6, color='tab:blue')
+
+            # Case 3: Each true parameter is a 2D array (e.g. for matrices)
+            else:
+                n_participants, var_dim = true_params[0].shape
+                n_runs = len(all_posteriors)
+                # Expect the posterior samples to have columns = n_participants * var_dim
+                expected_cols = var_dim * n_participants
+                if all_posteriors[0].shape[1] != expected_cols:
+                    raise ValueError(f"Expected {expected_cols} columns but got {all_posteriors[0].shape[1]}")
+                for run_idx, (true_mat, samples) in enumerate(zip(true_params, all_posteriors)):
+                    for lang_idx in range(var_dim):
+                        for part_idx in range(n_participants):
+                            col_idx = lang_idx * n_participants + part_idx
+                            if point_estimate == "mean":
+                                est = np.mean(samples[:, col_idx])
+                            elif point_estimate == "median":
+                                est = np.median(samples[:, col_idx])
+                            else:
+                                raise ValueError(f"Unknown point estimate: {point_estimate}")
+                            t_val = true_mat[part_idx, lang_idx]
+                            # sns.scatterplot(
+                            #     x=[t_val], y=[est], marker='o', s=30, color='tab:blue', ax=ax)
+                            sns.kdeplot(x=[t_val], y=[est], fill=True, cmap="inferno", ax=ax)
+                            # ax.plot(t_val, est, marker='o', linestyle='none', markersize=6, color='tab:blue')
+
+            # Identity line and labels
+            ax.plot([-3, 3], [-3, 3], '--', color='gray')
+            ax.set_title(f'Parameter Recovery: {title_mappings.get(parameter_name)}')
+            ax.set_xlabel('True Value')
+            ax.set_ylabel('Posterior Estimate')
+            # if parameter_name contains sigma use 0 to 3, else use -3 to 3
+            if "sigma" in parameter_name:
+                ax.set_xlim(0, 4)
+                ax.set_ylim(0, 4)
+            elif "phi_alpha" in parameter_name:
+                ax.set_xlim(0, 4)
+                ax.set_ylim(0, 4)
+            else:
+                ax.set_xlim(-3, 3)
+                ax.set_ylim(-3, 3)
+            # plt.suptitle(f'Parameter Recovery: {point_estimate.capitalize()}')
+            plt.tight_layout(rect=[0, 0, 1, 0.95])
+            output_file = os.path.join(output_path, f"{parameter_name}_recovery.png")
+            plt.savefig(output_file)
+            plt.close()
 
     def recover_parameters(self,
                            data,
@@ -426,6 +536,11 @@ class ParameterRecovery():
             #                                     parameter_name = i, 
             #                                     output_path = os.path.join(output_path_figures, "median"),
             #                                     point_estimate = "median")
+            self._generate_figures_recovery_kde(all_posteriors = all_posteriors[i],
+                                                true_params = true_params[i], 
+                                                parameter_name = i, 
+                                                output_path = os.path.join(output_path_figures, "kde"),
+                                                point_estimate = "mean")
         
         print(f"Model fit completed for {len(data)} datasets.")
         

@@ -13,7 +13,7 @@ class DataSimulation():
         self.parameters = None
         self.data = None
 
-    def set_parameters(self, L, K_1, K_2, n_repetitions):
+    def set_parameters(self, L, K_1, K_2, n_repetitions, n_samples):
         def _generate_zero_sum_array(n, m=0):
             """
             Generate an array of length n (or matrix of shape (m, n)) whose rows sum to zero.
@@ -21,28 +21,31 @@ class DataSimulation():
             if m == 0:
                 if n == 1:
                     return np.array([0.])
-                arr = np.random.uniform(-1.5, 1.5, size=n-1)
+                arr = np.random.normal(0, 1, size=n-1)
                 return np.append(arr, -arr.sum())
             else:
-                arr = np.random.uniform(-1.5, 1.5, size=(m, n-1))
+                arr = np.random.normal(0, 1, size=(m, n-1))
                 last_col = -arr.sum(axis=1, keepdims=True)
                 return np.hstack([arr, last_col])
 
         # insert specification of hyperparameters here that are relevant for the data simulation
         parameters = {
-            "mu_alpha": [-0.5, -0.2, -0.1, 0.0, 0.1, 0.2, 0.5],
-            "sigma_alpha": [0.1, 0.2, 0.5, 0.7, 1.0],
+            # "mu_alpha": [-0.5, -0.2, -0.1, 0.0, 0.1, 0.2, 0.5],
+            "mu_alpha": [np.random.normal(0, 1) for _ in range(n_samples)],
+            # "sigma_alpha": [0.1, 0.2, 0.5, 0.7, 1.0],
+            "sigma_alpha": [np.random.exponential(1) for _ in range(n_samples)],
             # "alpha_std": [np.random.normal(0, 1, size=L) for _ in range(245)],
 
-            "mu_beta_language": [_generate_zero_sum_array(K_1) for _ in range(245)],
-            "mu_beta_task": [_generate_zero_sum_array(K_2) for _ in range(245)],
-            "sigma_beta_language": [np.random.exponential(1, size=K_1) for _ in range(245)],
-            "sigma_beta_task": [np.random.exponential(1, size=K_2) for _ in range(245)],
+            "mu_beta_language": [_generate_zero_sum_array(K_1) for _ in range(n_samples)],
+            "mu_beta_task": [_generate_zero_sum_array(K_2) for _ in range(n_samples)],
+            "sigma_beta_language": [np.random.exponential(1, size=K_1) for _ in range(n_samples)],
+            "sigma_beta_task": [np.random.exponential(1, size=K_2) for _ in range(n_samples)],
             # "beta_language_std": [_generate_zero_sum_array(K_1, L) for _ in range(245)],
             # "beta_task_std": [_generate_zero_sum_array(K_2, L) for _ in range(245)],
 
-            "phi_alpha": [0.1, 1, 2, 3, 4, 5, 10],
-            "beta_task_phi": [_generate_zero_sum_array(K_2) for _ in range(245)],
+            # "phi_alpha": [0.1, 1, 2, 3, 4, 5, 10],
+            "phi_alpha": [abs(np.random.normal(2, 2)) for _ in range(n_samples)],
+            "beta_task_phi": [_generate_zero_sum_array(K_2) for _ in range(n_samples)],
         }
 
         self.parameters = parameters
@@ -50,6 +53,7 @@ class DataSimulation():
         self.K_1 = K_1
         self.K_2 = K_2
         self.n_repetitions = n_repetitions
+        self.n_samples = n_samples
 
 
     def plot_parameters(self, output_path):
@@ -116,26 +120,28 @@ class DataSimulation():
         K1 = self.K_1
         K2 = self.K_2
         n_repetitions = self.n_repetitions
+        n_samples = self.n_samples
 
         # Identify keys to loop over (those with list-like values)
         # loop_keys = [k for k, v in params.items() if isinstance(v, (list, np.ndarray)) and not isinstance(v, np.ndarray) or isinstance(v, list)]
-        loop_keys = ['mu_alpha', 'sigma_alpha', 'phi_alpha',]
+        # loop_keys = ['mu_alpha', 'sigma_alpha', 'phi_alpha',]
 
         # Build list of values for product
-        loop_values = [params[k] for k in loop_keys]
+        # loop_values = [params[k] for k in loop_keys]
         results = []
         iter = 0
 
-        for combo in itertools.product(*loop_values):
+        # for combo in itertools.product(*loop_values):
+        for i in range(n_samples):
             # Build a dict of current hyperparameters
-            combo_dict = params.copy()
-            for k, val in zip(loop_keys, combo):
-                combo_dict[k] = val
+            combo_dict = {k: (v[i] if isinstance(v, list) else v) for k, v in params.items()}
+            # for k, val in zip(loop_keys, combo):
+            #     combo_dict[k] = val
 
             # for k in combo_dict.keys() not in loop_keys:
-            for k in params.keys():
-                if k not in loop_keys:
-                    combo_dict[k] = combo_dict[k][iter]
+            # for k in params.keys():
+            #     if k not in loop_keys:
+            #         combo_dict[k] = combo_dict[k][iter]
 
             # Unpack hyperparameters
             mu_alpha = combo_dict['mu_alpha']
@@ -182,10 +188,10 @@ class DataSimulation():
             alpha_mu_idx = alpha_mu[df['model']]
 
             # Linear predictors and beta draws
-            eta = [alpha_mu_idx[i] + beta_mu_1_idx[i][df["language"][i]] + beta_mu_2_idx[i][df["task"][i]] + np.random.normal(0,0.5) for i in range(df.shape[0])]
+            eta = [alpha_mu_idx[i] + beta_mu_1_idx[i][df["language"][i]] + beta_mu_2_idx[i][df["task"][i]] + np.random.normal(0,0.25) for i in range(df.shape[0])]
         
             mu = expit(eta)
-            eta_phi = [phi_alpha + beta_task_phi[df["task"][i]] + np.random.normal(0,0.5) for i in range(df.shape[0])]
+            eta_phi = [phi_alpha + beta_task_phi[df["task"][i]] + np.random.normal(0,0.25) for i in range(df.shape[0])]
             phi = np.exp(eta_phi)
             phi = np.clip(phi, 1e-5, None)
             A = mu * phi
@@ -217,7 +223,7 @@ class DataSimulation():
                 print(f"Plotting histogram for iteration {iter}")
                 fig, ax = plt.subplots(figsize=(10, 6))
                 ax.hist(y, bins=20, edgecolor='black')
-                ax.set_title(f"Histogram of y (combo: {dict(zip(loop_keys, combo))})")
+                ax.set_title(fr"Histogram of y (mu_alpha: {mu_alpha}, phi_alpha: {phi_alpha})")
                 ax.set_xlabel('y')
                 ax.set_ylabel('Frequency')
                 plt.tight_layout()

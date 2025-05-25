@@ -13,7 +13,7 @@ if __name__ == "__main__":
     data_simulation = DataSimulation()
 
     # Set parameters for data simulation
-    data_simulation.set_parameters(L=5, K_1=12, K_2=7, n_repetitions=10)
+    data_simulation.set_parameters(L=10, K_1=12, K_2=7, n_repetitions=10, n_samples=200)
 
     # Plot the parameters
     data_simulation.plot_parameters(output_path_figure)
