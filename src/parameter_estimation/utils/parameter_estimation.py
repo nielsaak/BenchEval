@@ -464,7 +464,7 @@ class ParameterEstimation():
                         ax=axes[i-start],
                         legend=False
                     )
-                    axes[i-1].set_xlabel('y')
+                    axes[i-start].set_xlabel('y')
                     axes[i-start].set_title(f"LLM {i + 1}")
 
                 handles, labels = axes[0].get_legend_handles_labels()
@@ -476,6 +476,120 @@ class ParameterEstimation():
 
 
         pass
+
+    def posterior_distribution_plots(self):
+        language_map = {
+            'en': 'English',
+            'de': 'German',
+            'es': 'Spanish',
+            'fr': 'French',
+            'it': 'Italian',
+            'da': 'Danish',
+            'no': 'Norwegian',
+            'sv': 'Swedish',
+            'fi': 'Finnish',
+            'nl': 'Dutch',
+            'fo': 'Faroese',
+            'is': 'Icelandic',
+        }
+
+        coords = {"language_coord": [language_map.get(i, 'Unknown') for i in self.language_mapping.keys()],
+                    "task_coord": [i for i in list(self.task_mapping.keys())],
+                  }
+
+        coords = {"obs_id": np.arange(self.stan_data['N']),}
+        dims = {"mu_beta_language": ["language_coord"],
+                "sigma_beta_language": ["language_coord"],
+                "mu_beta_task": ["task_coord"],
+                "sigma_beta_task": ["task_coord"],
+                "beta_task_phi": ["task_coord"],}
+
+        cmdstanpy_data = az.from_cmdstanpy(
+            posterior=self.fit,
+            observed_data={'y': self.stan_data['y']},
+            coords=coords,
+            dims=dims,
+            posterior_predictive="y_pred",
+            )
+        
+        variable_mappings = {
+            "mu_alpha": r"$\mu_{\alpha}$",
+            "sigma_alpha": r"$\sigma_{\alpha}$",
+            "alpha_std": r'Model $\alpha$',
+            "mu_beta_language": r'Language: $\mu_{\beta}$',
+            "mu_beta_task": r'Task: $\mu_{\beta}$',
+            "sigma_beta_language": r'Language: $\sigma_{\beta}$',
+            "sigma_beta_task": r'Task: $\sigma_{\beta}$',
+            "beta_language_std": r'Model Language $\beta$',
+            "beta_task_std": r'Model Task $\beta$',
+            "phi_alpha": r'$\phi_{\alpha}$',
+            "beta_task_phi": r'$\phi_{\beta}$'
+        }
+
+        cmdstanpy_data = cmdstanpy_data.rename_vars(variable_mappings)
+
+        az.style.use(["arviz-whitegrid", "arviz-viridish"])
+        fig, axes = plt.subplots(2, 2, figsize=(20, 15))
+        axes = axes.flatten()
+
+        # Plot alpha parameters: mu_alpha, sigma_alpha, and alpha_std
+        az.plot_forest(
+            cmdstanpy_data,
+            var_names=[
+                variable_mappings.get("mu_alpha"),
+                variable_mappings.get("sigma_alpha"),
+            ],
+            colors="C1",
+            hdi_prob=0.95,
+            ax=axes[0]
+        )
+        axes[0].set_title("Intercept Parameters")
+
+        # Plot language parameters: mu_beta_language, sigma_beta_language, and beta_language_std
+        az.plot_forest(
+            cmdstanpy_data,
+            var_names=[
+                variable_mappings.get("mu_beta_language"),
+                variable_mappings.get("sigma_beta_language")
+            ],
+            colors="C2",
+            hdi_prob=0.95,
+            ax=axes[1]
+        )
+        axes[1].set_title("Language Parameters")
+
+        # Plot task parameters: mu_beta_task, sigma_beta_task, and beta_task_std
+        az.plot_forest(
+            cmdstanpy_data,
+            var_names=[
+                variable_mappings.get("mu_beta_task"),
+                variable_mappings.get("sigma_beta_task")
+            ],
+            colors="C3",
+            hdi_prob=0.95,
+            ax=axes[2]
+        )
+        axes[2].set_title("Task Parameters")
+
+        # Plot phi parameters: phi_alpha and beta_task_phi
+        az.plot_forest(
+            cmdstanpy_data,
+            var_names=[
+                variable_mappings.get("phi_alpha"),
+                variable_mappings.get("beta_task_phi")
+            ],
+            colors="C4",
+            hdi_prob=0.95,
+            ax=axes[3]
+        )
+        axes[3].set_title(r"$\phi$ Parameters")
+
+        plt.tight_layout()
+        # Save the plot to file
+        output_file = os.path.join(self.output_path_figures, "posterior_distribution_plots.png")
+        plt.savefig(output_file)
+        plt.close()
+
 
     def rank_comparison(self, rank_path, output_path_data, output_path_figures):
         

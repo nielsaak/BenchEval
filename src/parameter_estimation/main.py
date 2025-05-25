@@ -48,6 +48,9 @@ if __name__ == "__main__":
     # Produce summary plots
     parameter_estimation.summary_plots()
 
+    # Produce distribution plots
+    parameter_estimation.posterior_distribution_plots()
+
     # compare rank in model and data
     parameter_estimation.rank_comparison(rank_path = rank_path,
                                          output_path_data=output_path_data,
