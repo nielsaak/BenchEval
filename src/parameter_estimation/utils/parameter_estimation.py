@@ -468,8 +468,8 @@ class ParameterEstimation():
                     axes[i-start].set_title(f"LLM {i + 1}")
 
                 handles, labels = axes[0].get_legend_handles_labels()
-                fig.legend(handles, labels, loc='lower center', ncol=len(labels), bbox_to_anchor=(0.5, -0.04))
-                plt.suptitle(f'Posterior Predictive Check: LLM')
+                fig.legend(handles, labels, loc='lower center', ncol=len(labels), bbox_to_anchor=(0.5, -0.03))
+                plt.suptitle(f'Posterior Predictive Check: LLM', y=0.95)
                 plt.tight_layout()
                 plt.savefig(os.path.join(self.output_path_figures, f"model_ppc_{fig_idx + 1}.png"))
                 plt.close()
