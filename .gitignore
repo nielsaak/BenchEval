@@ -192,3 +192,6 @@ src/parameter_estimation_other_prior_loose/
 src/models/estimation/hierarchical_centered_estimation_other_prior.stan
 src/models/estimation/hierarchical_centered_estimation_other_prior_loose.stan
 src/models/estimation/hierarchical_centered_estimation_other_prior
+src/parameter_recovery/output_old/
+src/models
+src/data_simulation/output_old/

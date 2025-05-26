@@ -8,6 +8,7 @@ import numpy as np
 import cmdstanpy
 import json
 import seaborn as sns
+import cmdstanpy
 sns.set_theme(style="whitegrid")
 
 class ParameterRecovery():
@@ -374,6 +375,8 @@ class ParameterRecovery():
             }
 
             fig, ax = plt.subplots(figsize=(8, 6))
+            t_val = []
+            est = []
 
             # Case 1: Each true parameter is a single number (or a 1-element vector)
             if isinstance(true_params[0], (float, int)):
@@ -385,16 +388,16 @@ class ParameterRecovery():
                     for k in range(K):
                         # For scalar parameters K will be 1; for vector parameters this loops over each element.
                         if point_estimate == "mean":
-                            est = np.mean(samples[:, k])
+                            est.append(np.mean(samples[:, k]))
                         elif point_estimate == "median":
                             est = np.median(samples[:, k])
                         else:
                             raise ValueError(f"Unknown point estimate: {point_estimate}")
                         # If parameter is scalar, true_val may be a number; if vector, expect a list-like
-                        t_val = true_val if K == 1 else true_val[k]
+                        t_val.append(true_val if K == 1 else true_val[k])
                         # sns.scatterplot(
                         #     x=[t_val], y=[est], marker='o', s=30, color='tab:blue', ax=ax)
-                        sns.kdeplot(x=[t_val], y=[est], fill=True, cmap="inferno", ax=ax)
+                        # sns.kdeplot(x=[t_val], y=[est], fill=True, cmap="inferno", ax=ax)
                         # ax.plot(t_val, est, marker='o', linestyle='none', markersize=6, color='tab:blue')
 
             # Case 2: Each true parameter is a 1D array (vector)
@@ -404,15 +407,15 @@ class ParameterRecovery():
                 for run_idx, (true_arr, samples) in enumerate(zip(true_params, all_posteriors)):
                     for k in range(K):
                         if point_estimate == "mean":
-                            est = np.mean(samples[:, k])
+                            est.append(np.mean(samples[:, k]))
                         elif point_estimate == "median":
                             est = np.median(samples[:, k])
                         else:
                             raise ValueError(f"Unknown point estimate: {point_estimate}")
-                        t_val = true_arr[k]
+                        t_val.append(true_arr[k])
                         # sns.scatterplot(
                         #     x=[t_val], y=[est], marker='o', s=30, color='tab:blue', ax=ax)
-                        sns.kdeplot(x=[t_val], y=[est], fill=True, cmap="inferno", ax=ax)
+                        # sns.kdeplot(x=[t_val], y=[est], fill=True, cmap="inferno", ax=ax)
                         # ax.plot(t_val, est, marker='o', linestyle='none', markersize=6, color='tab:blue')
 
             # Case 3: Each true parameter is a 2D array (e.g. for matrices)
@@ -428,17 +431,18 @@ class ParameterRecovery():
                         for part_idx in range(n_participants):
                             col_idx = lang_idx * n_participants + part_idx
                             if point_estimate == "mean":
-                                est = np.mean(samples[:, col_idx])
+                                est.append(np.mean(samples[:, col_idx]))
                             elif point_estimate == "median":
                                 est = np.median(samples[:, col_idx])
                             else:
                                 raise ValueError(f"Unknown point estimate: {point_estimate}")
-                            t_val = true_mat[part_idx, lang_idx]
+                            t_val.append(true_mat[part_idx, lang_idx])
                             # sns.scatterplot(
                             #     x=[t_val], y=[est], marker='o', s=30, color='tab:blue', ax=ax)
-                            sns.kdeplot(x=[t_val], y=[est], fill=True, cmap="inferno", ax=ax)
+                            # sns.kdeplot(x=[t_val], y=[est], fill=True, cmap="inferno", ax=ax)
                             # ax.plot(t_val, est, marker='o', linestyle='none', markersize=6, color='tab:blue')
 
+            sns.kdeplot(x=t_val, y=est, fill=True, cmap="inferno", ax=ax)
             # Identity line and labels
             ax.plot([-3, 3], [-3, 3], '--', color='gray')
             ax.set_title(f'Parameter Recovery: {title_mappings.get(parameter_name)}')
@@ -480,51 +484,67 @@ class ParameterRecovery():
         failed_fits = []
         failed_fits_parameters = {param: [] for param in parameter_names}
 
-        for i in range(len(data)):
-        # for i in range(2):
-            # if fit_i exists, skip
-            # if os.path.exists(os.path.join(output_path_data, f"fit_{i}")):
-            #     print(f"Skipping dataset {i}, already fitted.")
-            #     continue
+        if os.path.exists(os.path.join(output_path_data)):
+            print(f"Parameter recovery already run.")
+            # read from csv
+            for i in range(len(data)):
+                try:
+                    fit = cmdstanpy.from_csv(path=os.path.join(output_path_data, f"fit_{i}"))
+                    for j in parameter_names:
+                        posterior_samples = fit.draws_pd(j)
+                        all_posteriors[j].append(posterior_samples.values)
+                        true_params[j].append(data[i]['param_combo'][j])
+                except Exception as e:
+                    print(f"Error loading model for dataset {j}: {e}")
+                    continue
+        else:
+            for i in range(len(data)):
+            # for i in range(2):
+                # if fit_i exists, skip
+                # if os.path.exists(os.path.join(output_path_data, f"fit_{i}")):
+                #     print(f"Skipping dataset {i}, already fitted.")
+                #     continue
 
-            data_ = data[i]
+                data_ = data[i]
 
-            # Compile the Stan model using cmdstanpy.
-            model = CmdStanModel(stan_file=stan_file)
+                # Compile the Stan model using cmdstanpy.
+                model = CmdStanModel(stan_file=stan_file)
 
-            try:
-                # Fit the model using MCMC sampling.
-                fit = model.sample(
-                    data=data_["data_dict"],
-                    **model_fit_params,
-                )
+                try:
+                    # Fit the model using MCMC sampling.
+                    fit = model.sample(
+                        data=data_["data_dict"],
+                        **model_fit_params,
+                    )
 
-                fit.save_csvfiles(os.path.join(output_path_data, f"fit_{i}"))
+                    fit.save_csvfiles(os.path.join(output_path_data, f"fit_{i}"))
 
-                for i in parameter_names:
-                    posterior_samples = fit.draws_pd(i)
-                    all_posteriors[i].append(posterior_samples.values)
-                    true_params[i].append(data_['param_combo'][i])
-            except Exception as e:
-                print(f"Error fitting model for dataset {i}: {e}")
-                failed_fits.append(i)
-                for param in parameter_names:
-                    failed_fits_parameters[param].append(data_[f'param_combo'][param])
-                continue
-        
-        # Save failed fits information
-        if failed_fits:
-            # save as json
-            failed_fits_info = {
-                "failed_fits": failed_fits,
-                "failed_fits_parameters": failed_fits_parameters
-            }
-            with open(os.path.join(output_path_data, "failed_fits.json"), "w") as f:
-                json.dump(failed_fits_info, f, default=lambda o: o.tolist() if hasattr(o, "tolist") else o)
+                    for i in parameter_names:
+                        posterior_samples = fit.draws_pd(i)
+                        all_posteriors[i].append(posterior_samples.values)
+                        true_params[i].append(data_['param_combo'][i])
+                except Exception as e:
+                    print(f"Error fitting model for dataset {i}: {e}")
+                    failed_fits.append(i)
+                    for param in parameter_names:
+                        failed_fits_parameters[param].append(data_[f'param_combo'][param])
+                    continue
+            
+            # Save failed fits information
+            if failed_fits:
+                # save as json
+                failed_fits_info = {
+                    "failed_fits": failed_fits,
+                    "failed_fits_parameters": failed_fits_parameters
+                }
+                with open(os.path.join(output_path_data, "failed_fits.json"), "w") as f:
+                    json.dump(failed_fits_info, f, default=lambda o: o.tolist() if hasattr(o, "tolist") else o)
+
 
         for i in parameter_names:
             # Check if the directory exists, if not create it
             os.makedirs(os.path.join(output_path_figures, 'mean'), exist_ok=True)
+            os.makedirs(os.path.join(output_path_figures, 'kde'), exist_ok=True)
             # os.makedirs(os.path.join(output_path_figures, 'median'), exist_ok=True)
             self._generate_figures_recovery_simple(all_posteriors = all_posteriors[i], 
                                                 true_params = true_params[i], 
@@ -541,7 +561,8 @@ class ParameterRecovery():
                                                 parameter_name = i, 
                                                 output_path = os.path.join(output_path_figures, "kde"),
                                                 point_estimate = "mean")
-        
+
+
         print(f"Model fit completed for {len(data)} datasets.")
         
         # Load the fitted models and extract the posterior samples.

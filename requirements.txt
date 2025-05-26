@@ -1,3 +1,5 @@
 cmdstanpy
 arviz
 scipy
+numpy
+seaborn
