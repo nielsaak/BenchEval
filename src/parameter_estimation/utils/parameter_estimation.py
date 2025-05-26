@@ -497,7 +497,6 @@ class ParameterEstimation():
                     "task_coord": [i for i in list(self.task_mapping.keys())],
                   }
 
-        coords = {"obs_id": np.arange(self.stan_data['N']),}
         dims = {"mu_beta_language": ["language_coord"],
                 "sigma_beta_language": ["language_coord"],
                 "mu_beta_task": ["task_coord"],

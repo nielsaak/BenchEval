@@ -186,3 +186,9 @@ src/model_experimentation/
 # all with suffix .ipynb
 *.ipynb
 
+src/parameter_estimation/output_old/
+src/parameter_estimation_other_prior/
+src/parameter_estimation_other_prior_loose/
+src/models/estimation/hierarchical_centered_estimation_other_prior.stan
+src/models/estimation/hierarchical_centered_estimation_other_prior_loose.stan
+src/models/estimation/hierarchical_centered_estimation_other_prior
