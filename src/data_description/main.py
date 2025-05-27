@@ -4,8 +4,8 @@ from utils.data_description import DataDescription
 if __name__ == "__main__":
     # Create path
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    output_path_figures = os.path.join(current_dir, "output/figures")
-    output_path_data = os.path.join(current_dir, "output/results")
+    output_path_figures = os.path.join(current_dir, "output_100/figures")
+    output_path_data = os.path.join(current_dir, "output_100/results")
     os.makedirs(output_path_figures, exist_ok=True)
     os.makedirs(output_path_data, exist_ok=True)
 

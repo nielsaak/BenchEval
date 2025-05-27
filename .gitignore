@@ -197,3 +197,6 @@ src/models/estimation/hierarchical_centered_estimation_other_prior
 src/parameter_recovery/output_old/
 src/models
 src/data_simulation/output_old/
+
+# all folders named something like "output_1", "output_2", etc.
+**/output*

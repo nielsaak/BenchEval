@@ -339,18 +339,21 @@ class ParameterRecovery():
                         # ax.plot(t_val, est, marker='o', linestyle='none', markersize=6, color='tab:blue')
 
         # Identity line and labels
-        ax.plot([-3, 3], [-3, 3], '--', color='gray')
-        ax.set_title(f'Parameter Recovery: {title_mappings.get(parameter_name)}')
-        ax.set_xlabel('True Value')
-        ax.set_ylabel('Posterior Estimate')
+        ax.set_title(f'Parameter Recovery: {title_mappings.get(parameter_name)}', fontsize=20)
+        ax.set_xlabel('True Value', fontsize=18)
+        ax.set_ylabel('Posterior Mean', fontsize=18)
+        ax.tick_params(axis='both', which='major', labelsize=16)
         # if parameter_name contains sigma use 0 to 3, else use -3 to 3
         if "sigma" in parameter_name:
+            ax.plot([0, 4], [0, 4], '--', color='gray')
             ax.set_xlim(0, 4)
             ax.set_ylim(0, 4)
         elif "phi_alpha" in parameter_name:
+            ax.plot([0, 4], [0, 4], '--', color='gray')
             ax.set_xlim(0, 4)
             ax.set_ylim(0, 4)
         else:
+            ax.plot([-3, 3], [-3, 3], '--', color='gray')
             ax.set_xlim(-3, 3)
             ax.set_ylim(-3, 3)
         # plt.suptitle(f'Parameter Recovery: {point_estimate.capitalize()}')
@@ -444,18 +447,21 @@ class ParameterRecovery():
 
             sns.kdeplot(x=t_val, y=est, fill=True, cmap="inferno", ax=ax)
             # Identity line and labels
-            ax.plot([-3, 3], [-3, 3], '--', color='gray')
-            ax.set_title(f'Parameter Recovery: {title_mappings.get(parameter_name)}')
-            ax.set_xlabel('True Value')
-            ax.set_ylabel('Posterior Estimate')
+            ax.set_title(f'Parameter Recovery: {title_mappings.get(parameter_name)}', fontsize=20)
+            ax.set_xlabel('True Value', fontsize=18)
+            ax.set_ylabel('Posterior Mean', fontsize=18)
+            ax.tick_params(axis='both', which='major', labelsize=16)
             # if parameter_name contains sigma use 0 to 3, else use -3 to 3
             if "sigma" in parameter_name:
+                ax.plot([0, 4], [0, 4], '--', color='gray')
                 ax.set_xlim(0, 4)
                 ax.set_ylim(0, 4)
             elif "phi_alpha" in parameter_name:
+                ax.plot([0, 4], [0, 4], '--', color='gray')
                 ax.set_xlim(0, 4)
                 ax.set_ylim(0, 4)
             else:
+                ax.plot([-3, 3], [-3, 3], '--', color='gray')
                 ax.set_xlim(-3, 3)
                 ax.set_ylim(-3, 3)
             # plt.suptitle(f'Parameter Recovery: {point_estimate.capitalize()}')
