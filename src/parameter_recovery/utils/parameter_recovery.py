@@ -473,9 +473,9 @@ class ParameterRecovery():
                            model_fit_params: dict = {"chains": 1,
                                                      "iter_sampling": 1000,
                                                      "iter_warmup": 500,
-                                                     "seed": 42,
+                                                     "seed": 123,
                                                     #  "output_dir": "output/stan_fits",
-                                                     "adapt_delta": 0.9,
+                                                     "adapt_delta": 0.95,
                                                     #  "show_console": True,
                                                      }):
         
@@ -504,6 +504,7 @@ class ParameterRecovery():
                 # if os.path.exists(os.path.join(output_path_data, f"fit_{i}")):
                 #     print(f"Skipping dataset {i}, already fitted.")
                 #     continue
+                os.makedirs(output_path_data, exist_ok=True)
 
                 data_ = data[i]
 

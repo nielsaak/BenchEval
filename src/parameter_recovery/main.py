@@ -8,7 +8,7 @@ if __name__ == "__main__":
     output_path_figures = os.path.join(current_dir, "output/figures")
     output_path_data = os.path.join(current_dir, "output/stan_fits")
     os.makedirs(output_path_figures, exist_ok=True)
-    os.makedirs(output_path_data, exist_ok=True)
+    # os.makedirs(output_path_data, exist_ok=True)
 
     # Load data
     data_path = os.path.join(current_dir, "../data_simulation/output/results/data.pkl")

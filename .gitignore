@@ -175,6 +175,8 @@ cython_debug/
 
 # **/data/
 **/output/
+**/output_1/
+**/output_20/
 src/models/hierarchical/
 src/models/simple/
 src/model_experimentation/
