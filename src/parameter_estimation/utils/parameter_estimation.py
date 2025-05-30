@@ -362,6 +362,21 @@ class ParameterEstimation():
         Generate summary plots.
         """
         print("Generating summary plots...")
+
+        language_map = {
+            'en': 'English',
+            'de': 'German',
+            'es': 'Spanish',
+            'fr': 'French',
+            'it': 'Italian',
+            'da': 'Danish',
+            'no': 'Norwegian',
+            'sv': 'Swedish',
+            'fi': 'Finnish',
+            'nl': 'Dutch',
+            'fo': 'Faroese',
+            'is': 'Icelandic',
+        }
         # Load the fit data
         # fit = self.fit
 
@@ -381,10 +396,11 @@ class ParameterEstimation():
 
         if not os.path.exists(os.path.join(self.output_path_figures, "overall_ppc.png")):
 
+            plt.figure(figsize=(15, 10))
             az.plot_ppc(cmdstanpy_data, 
                 data_pairs={"y":"y_pred"})
             plt.xlabel('y')
-
+            plt.title('Posterior Predictive Check', fontsize=18)
             plt.savefig(os.path.join(self.output_path_figures, "overall_ppc.png"))
             plt.close()
 
@@ -404,11 +420,11 @@ class ParameterEstimation():
                     legend=False
                 )
                 axes[i-1].set_xlabel('y')
-                axes[i-1].set_title(f"Language: {next((k for k, v in self.language_mapping.items() if v == i), "Unknown")}")
+                axes[i-1].set_title(f"{language_map.get(next((k for k, v in self.language_mapping.items() if v == i), "Unknown"), 'Unknown')}", fontsize=18)
             
             handles, labels = axes[0].get_legend_handles_labels()
             fig.legend(handles, labels, loc='lower center', ncol=len(labels), bbox_to_anchor=(0.5, -0.04))
-            plt.suptitle(f'Posterior Predictive Check: Language')
+            plt.suptitle(f'Posterior Predictive Check: Language', fontsize=24)
             plt.tight_layout()
             plt.savefig(os.path.join(self.output_path_figures, "language_ppc.png"))
             plt.close()
@@ -429,14 +445,14 @@ class ParameterEstimation():
                     legend=False
                 )
                 axes[i-1].set_xlabel('y')
-                axes[i-1].set_title(f"Task: {next((k for k, v in self.task_mapping.items() if v == i), "Unknown")}")
+                axes[i-1].set_title(f"{next((k for k, v in self.task_mapping.items() if v == i), 'Unknown').capitalize()}", fontsize=18)
 
             for ax in axes[self.stan_data["n_task"]:]:
                 ax.remove()
 
             handles, labels = axes[0].get_legend_handles_labels()
             fig.legend(handles, labels, loc='lower center', ncol=len(labels), bbox_to_anchor=(0.5, -0.04))
-            plt.suptitle(f'Posterior Predictive Check: Task')
+            plt.suptitle(f'Posterior Predictive Check: Task', fontsize=24)
             plt.tight_layout()
             plt.savefig(os.path.join(self.output_path_figures, "task_ppc.png"))
             plt.close()
@@ -451,7 +467,7 @@ class ParameterEstimation():
             rows, cols = 5, 5
 
             for fig_idx in range(n_figs):
-                fig, axes = plt.subplots(rows, cols, figsize=(20, 20))
+                fig, axes = plt.subplots(rows, cols, figsize=(22, 20))
                 axes = axes.flatten()
                 start = fig_idx * plots_per_fig
                 end   = start + plots_per_fig
@@ -465,12 +481,12 @@ class ParameterEstimation():
                         legend=False
                     )
                     axes[i-start].set_xlabel('y')
-                    axes[i-start].set_title(f"LLM {i + 1}")
+                    axes[i-start].set_title(f"LLM {i + 1}", fontsize=18)
 
                 handles, labels = axes[0].get_legend_handles_labels()
-                fig.legend(handles, labels, loc='lower center', ncol=len(labels), bbox_to_anchor=(0.5, -0.03))
-                plt.suptitle(f'Posterior Predictive Check: LLM', y=0.95)
-                plt.tight_layout()
+                # fig.legend(handles, labels, loc='lower center', ncol=len(labels), bbox_to_anchor=(0.5, -0.03))
+                plt.tight_layout(rect=[0, 0, 1, 0.90])
+                plt.suptitle(f'Posterior Predictive Check: LLM', fontsize=28, y=0.95)
                 plt.savefig(os.path.join(self.output_path_figures, f"model_ppc_{fig_idx + 1}.png"))
                 plt.close()
 
@@ -515,8 +531,8 @@ class ParameterEstimation():
             "mu_alpha": r"$\mu_{\alpha}$",
             "sigma_alpha": r"$\sigma_{\alpha}$",
             "alpha_std": r'Model $\alpha$',
-            "mu_beta_language": r'Language: $\mu_{\beta}$',
-            "mu_beta_task": r'Task: $\mu_{\beta}$',
+            "mu_beta_language": r'Language: $\mu_{\beta} $',
+            "mu_beta_task": r'Task: $\mu_{\beta} $',
             "sigma_beta_language": r'Language: $\sigma_{\beta}$',
             "sigma_beta_task": r'Task: $\sigma_{\beta}$',
             "beta_language_std": r'Model Language $\beta$',
@@ -528,65 +544,92 @@ class ParameterEstimation():
         cmdstanpy_data = cmdstanpy_data.rename_vars(variable_mappings)
 
         az.style.use(["arviz-whitegrid", "arviz-viridish"])
-        fig, axes = plt.subplots(2, 2, figsize=(20, 15))
-        axes = axes.flatten()
-
-        # Plot alpha parameters: mu_alpha, sigma_alpha, and alpha_std
+        # Intercept Parameters Figure
+        fig1, ax1 = plt.subplots(figsize=(14, 8))
         az.plot_forest(
             cmdstanpy_data,
             var_names=[
-                variable_mappings.get("mu_alpha"),
-                variable_mappings.get("sigma_alpha"),
+            variable_mappings.get("mu_alpha"),
+            variable_mappings.get("sigma_alpha"),
             ],
             colors="C1",
             hdi_prob=0.95,
-            ax=axes[0]
+            ax=ax1,
+            combined=True
         )
-        axes[0].set_title("Intercept Parameters")
+        ax1.set_title(r"$\mu$ Intercept Parameters", fontsize=20)
+        ax1.set_xlabel(ax1.get_xlabel(), fontsize=16)
+        ax1.set_ylabel(ax1.get_ylabel(), fontsize=16)
+        ax1.tick_params(axis='both', labelsize=16)
+        plt.tight_layout()
+        output_file1 = os.path.join(self.output_path_figures, "posterior_distribution_intercept.png")
+        plt.savefig(output_file1)
+        plt.close()
 
-        # Plot language parameters: mu_beta_language, sigma_beta_language, and beta_language_std
+        # Language Parameters Figure
+        fig2, ax2 = plt.subplots(figsize=(14, 8))
         az.plot_forest(
             cmdstanpy_data,
             var_names=[
-                variable_mappings.get("mu_beta_language"),
-                variable_mappings.get("sigma_beta_language")
+            variable_mappings.get("mu_beta_language"),
+            variable_mappings.get("sigma_beta_language")
             ],
             colors="C2",
             hdi_prob=0.95,
-            ax=axes[1]
+            ax=ax2,
+            combined=True
         )
-        axes[1].set_title("Language Parameters")
+        ax2.set_title("Language Parameters", fontsize=20)
+        ax2.set_xlabel(ax2.get_xlabel(), fontsize=16)
+        ax2.set_ylabel(ax2.get_ylabel(), fontsize=16)
+        ax2.tick_params(axis='both', labelsize=16)
+        plt.tight_layout()
+        output_file2 = os.path.join(self.output_path_figures, "posterior_distribution_language.png")
+        plt.savefig(output_file2)
+        plt.close()
 
-        # Plot task parameters: mu_beta_task, sigma_beta_task, and beta_task_std
+        # Task Parameters Figure
+        fig3, ax3 = plt.subplots(figsize=(14, 8))
         az.plot_forest(
             cmdstanpy_data,
             var_names=[
-                variable_mappings.get("mu_beta_task"),
-                variable_mappings.get("sigma_beta_task")
+            variable_mappings.get("mu_beta_task"),
+            variable_mappings.get("sigma_beta_task")
             ],
             colors="C3",
             hdi_prob=0.95,
-            ax=axes[2]
+            ax=ax3,
+            combined=True
         )
-        axes[2].set_title("Task Parameters")
+        ax3.set_title("Task Parameters", fontsize=20)
+        ax3.set_xlabel(ax3.get_xlabel(), fontsize=16)
+        ax3.set_ylabel(ax3.get_ylabel(), fontsize=16)
+        ax3.tick_params(axis='both', labelsize=16)
+        plt.tight_layout()
+        output_file3 = os.path.join(self.output_path_figures, "posterior_distribution_task.png")
+        plt.savefig(output_file3)
+        plt.close()
 
-        # Plot phi parameters: phi_alpha and beta_task_phi
+        # φ Parameters Figure
+        fig4, ax4 = plt.subplots(figsize=(14, 8))
         az.plot_forest(
             cmdstanpy_data,
             var_names=[
-                variable_mappings.get("phi_alpha"),
-                variable_mappings.get("beta_task_phi")
+            variable_mappings.get("phi_alpha"),
+            variable_mappings.get("beta_task_phi")
             ],
             colors="C4",
             hdi_prob=0.95,
-            ax=axes[3]
+            ax=ax4,
+            combined=True
         )
-        axes[3].set_title(r"$\phi$ Parameters")
-
+        ax4.set_title(r"$\phi$ Parameters", fontsize=20)
+        ax4.set_xlabel(ax4.get_xlabel(), fontsize=16)
+        ax4.set_ylabel(ax4.get_ylabel(), fontsize=16)
+        ax4.tick_params(axis='both', labelsize=16)
         plt.tight_layout()
-        # Save the plot to file
-        output_file = os.path.join(self.output_path_figures, "posterior_distribution_plots.png")
-        plt.savefig(output_file)
+        output_file4 = os.path.join(self.output_path_figures, "posterior_distribution_phi.png")
+        plt.savefig(output_file4)
         plt.close()
 
 
@@ -629,9 +672,9 @@ class ParameterEstimation():
 
         plt.scatter(x, y)
         plt.plot([0, 100], [0, 100], 'r--')  # Ideal diagonal
-        plt.xlabel("Rank on EuroEval")
-        plt.ylabel("Rank according to Model")
-        plt.title("Rank Comparison")
+        plt.xlabel("Rank on EuroEval", fontsize=16)
+        plt.ylabel("Rank according to model", fontsize=16)
+        plt.title("Rank Comparison", fontsize=20)
 
         # Save the plot to file
         output_file = os.path.join(output_path_figures, "rank_comparison.png")

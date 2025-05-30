@@ -1,0 +1,8 @@
+task,mae
+['sentiment-classification'],0.07571602059433948
+['summarization'],0.029179732910240872
+['named-entity-recognition'],0.10525762190505576
+['knowledge'],0.0822668125909235
+['reading-comprehension'],0.18279807597360562
+['common-sense-reasoning'],0.06659649858837967
+['linguistic-acceptability'],0.05601639537402316

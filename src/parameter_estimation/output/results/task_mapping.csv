@@ -1,0 +1,8 @@
+task,task_id
+sentiment-classification,1
+summarization,2
+named-entity-recognition,3
+knowledge,4
+reading-comprehension,5
+common-sense-reasoning,6
+linguistic-acceptability,7

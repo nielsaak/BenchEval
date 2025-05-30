@@ -179,6 +179,50 @@ class DataDescription():
         
         self.data = df_full
 
+        # save the unique models to a latex file
+        unique_models = pd.DataFrame(sorted(self.data['model'].unique()), columns=['model'])
+        # extract the mode link that is inside ''
+        unique_models['model_link'] = unique_models['model'].str.extract(r"'(.*?)'", expand=False)
+        # remove the HTML tags by extracting the text between > and </a>
+        unique_models['model'] = unique_models['model'].str.extract(r"<a href='.*'>(.*?)</a>", expand=False).fillna(unique_models['model'])
+        output_path = os.path.join(self.output_path_data, "unique_models.txt")
+        with open(output_path, "w") as txt_file:
+            txt_file.write(unique_models.to_latex(index=False, caption="Unique Models", label="tab:unique_models"))
+        print(f"Unique models saved to {output_path}")
+
+    def generate_data_description(self):
+        """
+        Generate a description of the data including means and standard deviations across languages and tasks and save it to a file.
+        """
+        # Group by language and task, then calculate mean and std for each group
+        grouped_language = self.data.groupby(['language']).agg(
+            mean_value=('value', 'mean'),
+            std_value=('value', 'std'),
+            count=('value', 'count')
+        ).reset_index().sort_values(by='mean_value')
+
+        grouped_task = self.data.groupby(['task']).agg(
+            mean_value=('value', 'mean'),
+            std_value=('value', 'std'),
+            count=('value', 'count')
+        ).reset_index().sort_values(by='mean_value')
+
+        # Save the grouped data to a CSV file
+        output_path = os.path.join(self.output_path_data, "data_description_language.csv")
+        grouped_language.to_csv(output_path, index=False)
+        output_path_txt = os.path.join(self.output_path_data, "data_description_language.txt")
+        with open(output_path_txt, "w") as txt_file:
+            txt_file.write(grouped_language.to_latex(index=False, caption="Language Data Description", label="tab:language_data"))
+        print(f"Data description by language saved to {output_path_txt}")
+
+        print(f"Data description by language saved to {output_path}")
+        output_path = os.path.join(self.output_path_data, "data_description_task.csv")
+        grouped_task.to_csv(output_path, index=False)
+        output_path_txt = os.path.join(self.output_path_data, "data_description_task.txt")
+        with open(output_path_txt, "w") as txt_file:
+            txt_file.write(grouped_task.to_latex(index=False, caption="Task Data Description", label="tab:task_data"))
+        print(f"Data description by task saved to {output_path}")
+
     def plot_histograms(self, group_by: str):
         df = self.data.copy()
 
@@ -193,9 +237,9 @@ class DataDescription():
 
         for ax, (val, group) in zip(axes, groups):
             group['value'].plot.hist(bins=30, edgecolor='black', ax=ax)
-            ax.set_title(f"{group_by.capitalize()}: {val[0].capitalize()}")
-            ax.set_xlabel("Value")
-            ax.set_ylabel("Frequency")
+            ax.set_title(f"{group_by.capitalize()}: {val[0].capitalize()}", fontsize=16)
+            ax.set_xlabel("Value", fontsize=14)
+            ax.set_ylabel("Frequency", fontsize=14)
             ax.set_xlim(0, 1)
 
         # Remove unused subplots if there are any
@@ -203,7 +247,7 @@ class DataDescription():
             ax.remove()
 
         # Add an overall title to the full figure
-        fig.suptitle(f"Histograms by {group_by.capitalize()}", fontsize=16)
+        fig.suptitle(f"Histograms by {group_by.capitalize()}", fontsize=20)
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         
         # Save the figure
@@ -215,9 +259,9 @@ class DataDescription():
 
         model_counts = self.data['model'].value_counts()
         plt.hist(model_counts, bins=20, edgecolor='black')
-        plt.title("Model Observations Histogram")
-        plt.xlabel("Number of Observations")
-        plt.ylabel("Frequency")
+        plt.title("Model Observations Histogram", fontsize=20)
+        plt.xlabel("Number of Observations", fontsize=14)
+        plt.ylabel("Frequency", fontsize=14)
 
         # Save the figure
         output_path = os.path.join(self.output_path_figures, "model_observations_histogram.png")

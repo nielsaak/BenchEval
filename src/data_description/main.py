@@ -23,6 +23,9 @@ if __name__ == "__main__":
     # Preprocess data
     data_description.preprocess_data(top_n=100,
                                      top_n_path=rank_path)
+    
+    # Save data description
+    data_description.generate_data_description()
 
     # Save language histograms
     data_description.plot_histograms(group_by="language")
