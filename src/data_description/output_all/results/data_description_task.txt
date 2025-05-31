@@ -1,0 +1,17 @@
+\begin{table}
+\caption{Task Data Description}
+\label{tab:task_data}
+\begin{tabular}{lrrr}
+\toprule
+task & mean_value & std_value & count \\
+\midrule
+reading-comprehension & 0.365806 & 0.204136 & 23650 \\
+named-entity-recognition & 0.469265 & 0.204532 & 26710 \\
+linguistic-acceptability & 0.588529 & 0.096048 & 26790 \\
+summarization & 0.611860 & 0.104575 & 21590 \\
+common-sense-reasoning & 0.627592 & 0.134903 & 23220 \\
+knowledge & 0.636877 & 0.127944 & 30260 \\
+sentiment-classification & 0.716509 & 0.141625 & 26540 \\
+\bottomrule
+\end{tabular}
+\end{table}

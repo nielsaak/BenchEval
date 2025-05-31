@@ -1,0 +1,22 @@
+\begin{table}
+\caption{Language Data Description}
+\label{tab:language_data}
+\begin{tabular}{lrrr}
+\toprule
+language & mean_value & std_value & count \\
+\midrule
+Icelandic & 0.489008 & 0.184410 & 17520 \\
+Faroese & 0.497398 & 0.193367 & 8420 \\
+German & 0.559787 & 0.194886 & 16020 \\
+Spanish & 0.560740 & 0.180836 & 9450 \\
+Norwegian & 0.561022 & 0.166104 & 28120 \\
+Italian & 0.592638 & 0.169227 & 10670 \\
+Danish & 0.596735 & 0.170886 & 23690 \\
+Swedish & 0.596803 & 0.179708 & 19170 \\
+Dutch & 0.597172 & 0.182092 & 18040 \\
+French & 0.601849 & 0.213105 & 11450 \\
+English & 0.656092 & 0.163807 & 15730 \\
+Finnish & 0.706960 & 0.154314 & 480 \\
+\bottomrule
+\end{tabular}
+\end{table}

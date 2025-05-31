@@ -237,7 +237,7 @@ class DataDescription():
 
         for ax, (val, group) in zip(axes, groups):
             group['value'].plot.hist(bins=30, edgecolor='black', ax=ax)
-            ax.set_title(f"{group_by.capitalize()}: {val[0].capitalize()}", fontsize=16)
+            ax.set_title(f"{val[0].capitalize()}", fontsize=16)
             ax.set_xlabel("Value", fontsize=14)
             ax.set_ylabel("Frequency", fontsize=14)
             ax.set_xlim(0, 1)

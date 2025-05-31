@@ -189,3 +189,5 @@ src/models/simple
 src/parameter_estimation/output/results/stan_fit
 src/parameter_estimation/output_old
 src/parameter_recovery/output/stan_fits
+src/model_development/output_posterior/results/stan_fit
+src/model_development/output_prior/results/stan_fit
